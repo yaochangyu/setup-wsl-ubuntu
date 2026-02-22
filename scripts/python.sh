@@ -1,0 +1,65 @@
+#!/bin/bash
+
+###############################################################################
+# Python 與 pyenv 安裝模組
+###############################################################################
+
+install_python() {
+    print_header "安裝 Python 與 pyenv"
+
+    info "安裝 Python 建置依賴..."
+
+    local python_deps=(
+        "make" "build-essential" "libssl-dev" "zlib1g-dev"
+        "libbz2-dev" "libreadline-dev" "libsqlite3-dev" "wget"
+        "curl" "llvm" "libncursesw5-dev" "xz-utils" "tk-dev"
+        "libxml2-dev" "libxmlsec1-dev" "libffi-dev" "liblzma-dev"
+    )
+
+    apt-get install -y "${python_deps[@]}" >> "${LOG_FILE}" 2>&1
+
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home=$(eval echo ~${actual_user})
+
+    if [[ "${actual_user}" == "root" ]]; then
+        warning "不建議以 root 使用者安裝 pyenv"
+        return 1
+    fi
+
+    info "安裝 pyenv..."
+    sudo -u "${actual_user}" bash -c 'curl https://pyenv.run | bash' >> "${LOG_FILE}" 2>&1
+
+    if [[ ! -d "${user_home}/.pyenv" ]]; then
+        error "pyenv 安裝失敗"
+        return 1
+    fi
+
+    success "pyenv 已安裝"
+
+    # 設定 pyenv 環境變數
+    local shell_rc="${user_home}/.bashrc"
+
+    if ! grep -q 'PYENV_ROOT' "${shell_rc}"; then
+        info "設定 pyenv 環境變數..."
+        sudo -u "${actual_user}" tee -a "${shell_rc}" > /dev/null <<'EOF'
+
+# pyenv configuration
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
+EOF
+        success "環境變數已設定"
+    fi
+
+    # 安裝最新 Python 版本
+    info "安裝 Python 3.12..."
+    sudo -u "${actual_user}" bash -c "export PYENV_ROOT='${user_home}/.pyenv' && export PATH='\$PYENV_ROOT/bin:\$PATH' && eval '\$(pyenv init -)' && pyenv install 3.12 -s" >> "${LOG_FILE}" 2>&1 || warning "Python 3.12 安裝失敗"
+
+    sudo -u "${actual_user}" bash -c "export PYENV_ROOT='${user_home}/.pyenv' && export PATH='\$PYENV_ROOT/bin:\$PATH' && eval '\$(pyenv init -)' && pyenv global 3.12" >> "${LOG_FILE}" 2>&1 || warning "Python 設定失敗"
+
+    success "Python 與 pyenv 安裝完成"
+    INSTALL_STATUS["python"]="success"
+}
+
+export -f install_python

@@ -606,24 +606,69 @@ main() {
     print_separator
 
     # 計算總步驟數
-    TOTAL_STEPS=5
+    TOTAL_STEPS=12
     CURRENT_STEP=0
 
     # 安裝工具
+    update_progress "設定基礎系統..."
+    if declare -f setup_base_system &> /dev/null; then
+        setup_base_system
+    fi
+
     update_progress "安裝 Docker..."
-    install_docker
+    if declare -f install_docker &> /dev/null; then
+        install_docker
+    fi
 
     update_progress "安裝 .NET SDK..."
-    install_dotnet
+    if declare -f install_dotnet &> /dev/null; then
+        install_dotnet
+    fi
 
     update_progress "安裝 Node.js..."
-    install_nodejs
+    if declare -f install_nodejs &> /dev/null; then
+        install_nodejs
+    fi
 
     update_progress "安裝 Python..."
-    install_python
+    if declare -f install_python &> /dev/null; then
+        install_python
+    fi
 
-    update_progress "安裝其他工具..."
-    install_other_tools
+    update_progress "安裝 Go..."
+    if declare -f install_go &> /dev/null; then
+        install_go
+    fi
+
+    update_progress "安裝 Rust..."
+    if declare -f install_rust &> /dev/null; then
+        install_rust
+    fi
+
+    update_progress "設定 VS Code Server..."
+    if declare -f install_vscode_server &> /dev/null; then
+        install_vscode_server
+    fi
+
+    update_progress "安裝 Vim 插件..."
+    if declare -f install_vim_plugins &> /dev/null; then
+        install_vim_plugins
+    fi
+
+    update_progress "安裝資料庫工具..."
+    if declare -f install_database_tools &> /dev/null; then
+        install_database_tools
+    fi
+
+    update_progress "安裝 DevOps 工具..."
+    if declare -f install_devops_tools &> /dev/null; then
+        install_devops_tools
+    fi
+
+    update_progress "安裝 CLI 工具..."
+    if declare -f install_cli_tools &> /dev/null; then
+        install_cli_tools
+    fi
 
     print_separator
 
