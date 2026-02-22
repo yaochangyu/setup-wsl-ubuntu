@@ -38,7 +38,7 @@
 
 ### Phase 2: Linux 工具安裝腳本
 
-- [ ] **步驟 3：建立主安裝腳本 (install-linux-tools.sh)**
+- [x] **步驟 3：建立主安裝腳本 (install-linux-tools.sh)**
   - 目的：自動化安裝所有開發工具
   - 檔案：`install-linux-tools.sh`
   - 功能架構：

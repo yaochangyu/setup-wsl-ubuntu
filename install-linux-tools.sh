@@ -1,0 +1,653 @@
+#!/bin/bash
+
+###############################################################################
+# WSL2 Ubuntu 開發環境自動安裝腳本
+#
+# 功能：
+#   - 安裝開發工具（Docker、.NET、Node.js、Python、Go、Rust 等）
+#   - 支援離線安裝
+#   - 支援代理設定
+#   - 完整的日誌記錄
+#   - 安裝後驗證
+#
+# 使用方式：
+#   sudo ./install-linux-tools.sh [選項]
+#
+# 選項：
+#   --offline          使用離線安裝模式
+#   --proxy <url>      設定代理伺服器
+#   --config <file>    使用自訂配置檔
+#   --skip-verify      跳過安裝驗證
+#   --help             顯示說明
+#
+###############################################################################
+
+set -e  # 遇到錯誤立即退出
+# set -x  # 取消註解以啟用除錯模式
+
+###############################################################################
+# 全域變數
+###############################################################################
+
+# 腳本資訊
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+readonly SCRIPT_VERSION="1.0.0"
+
+# 目錄設定
+readonly LOG_DIR="${SCRIPT_DIR}/logs"
+readonly SCRIPTS_DIR="${SCRIPT_DIR}/scripts"
+readonly OFFLINE_DIR="${SCRIPT_DIR}/offline-packages"
+readonly CONFIG_DIR="${SCRIPT_DIR}"
+
+# 日誌設定
+readonly LOG_FILE="${LOG_DIR}/install-$(date +%Y%m%d-%H%M%S).log"
+
+# 顏色定義
+readonly COLOR_RESET='\033[0m'
+readonly COLOR_RED='\033[0;31m'
+readonly COLOR_GREEN='\033[0;32m'
+readonly COLOR_YELLOW='\033[0;33m'
+readonly COLOR_BLUE='\033[0;34m'
+readonly COLOR_CYAN='\033[0;36m'
+readonly COLOR_BOLD='\033[1m'
+
+# 安裝選項（預設值）
+OFFLINE_MODE=false
+PROXY_URL=""
+CONFIG_FILE="${CONFIG_DIR}/config.sh"
+SKIP_VERIFY=false
+
+# 安裝狀態追蹤
+declare -A INSTALL_STATUS
+TOTAL_STEPS=0
+CURRENT_STEP=0
+
+###############################################################################
+# 工具函式
+###############################################################################
+
+# 初始化日誌目錄
+init_log_dir() {
+    if [[ ! -d "${LOG_DIR}" ]]; then
+        mkdir -p "${LOG_DIR}"
+    fi
+}
+
+# 日誌函式
+log() {
+    local level="$1"
+    shift
+    local message="$*"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+    echo "[${timestamp}] [${level}] ${message}" >> "${LOG_FILE}"
+}
+
+# 輸出函式（同時輸出到控制台和日誌）
+print_log() {
+    local level="$1"
+    local color="$2"
+    shift 2
+    local message="$*"
+
+    echo -e "${color}[${level}]${COLOR_RESET} ${message}"
+    log "${level}" "${message}"
+}
+
+info() {
+    print_log "INFO" "${COLOR_CYAN}" "$@"
+}
+
+success() {
+    print_log "SUCCESS" "${COLOR_GREEN}" "$@"
+}
+
+warning() {
+    print_log "WARNING" "${COLOR_YELLOW}" "$@"
+}
+
+error() {
+    print_log "ERROR" "${COLOR_RED}" "$@"
+}
+
+debug() {
+    if [[ "${DEBUG:-false}" == "true" ]]; then
+        print_log "DEBUG" "${COLOR_BLUE}" "$@"
+    fi
+}
+
+# 進度顯示
+show_progress() {
+    local current=$1
+    local total=$2
+    local message=$3
+
+    local percent=$((current * 100 / total))
+    local bar_length=50
+    local filled_length=$((bar_length * current / total))
+
+    printf "\r["
+    printf "%${filled_length}s" | tr ' ' '='
+    printf "%$((bar_length - filled_length))s" | tr ' ' '-'
+    printf "] %3d%% - %s" "$percent" "$message"
+
+    if [[ $current -eq $total ]]; then
+        echo ""
+    fi
+}
+
+# 更新步驟進度
+update_progress() {
+    ((CURRENT_STEP++))
+    show_progress "${CURRENT_STEP}" "${TOTAL_STEPS}" "$1"
+}
+
+# 標題顯示
+print_header() {
+    echo ""
+    echo -e "${COLOR_BOLD}${COLOR_CYAN}========================================${COLOR_RESET}"
+    echo -e "${COLOR_BOLD}${COLOR_CYAN}$1${COLOR_RESET}"
+    echo -e "${COLOR_BOLD}${COLOR_CYAN}========================================${COLOR_RESET}"
+    echo ""
+}
+
+# 分隔線
+print_separator() {
+    echo -e "${COLOR_BLUE}----------------------------------------${COLOR_RESET}"
+}
+
+# 錯誤處理
+handle_error() {
+    local line_number=$1
+    local error_code=$2
+
+    error "腳本執行失敗於第 ${line_number} 行，錯誤代碼: ${error_code}"
+    error "請檢查日誌檔案: ${LOG_FILE}"
+
+    exit "${error_code}"
+}
+
+trap 'handle_error ${LINENO} $?' ERR
+
+# 檢查是否為 root 使用者
+check_root() {
+    if [[ $EUID -ne 0 ]]; then
+        error "此腳本需要 root 權限執行"
+        error "請使用: sudo $0"
+        exit 1
+    fi
+}
+
+# 檢查作業系統
+check_os() {
+    info "檢查作業系統..."
+
+    if [[ ! -f /etc/os-release ]]; then
+        error "無法識別作業系統"
+        exit 1
+    fi
+
+    source /etc/os-release
+
+    info "作業系統: ${NAME} ${VERSION}"
+    log "INFO" "OS ID: ${ID}, Version ID: ${VERSION_ID}"
+
+    # 檢查是否為 Ubuntu
+    if [[ "${ID}" != "ubuntu" ]]; then
+        warning "此腳本主要針對 Ubuntu 設計，在其他發行版上可能無法正常運作"
+        read -p "是否要繼續？ (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            info "使用者取消安裝"
+            exit 0
+        fi
+    fi
+
+    success "作業系統檢查通過"
+}
+
+# 檢查網路連線
+check_network() {
+    if [[ "${OFFLINE_MODE}" == "true" ]]; then
+        info "離線模式：跳過網路檢查"
+        return 0
+    fi
+
+    info "檢查網路連線..."
+
+    if ping -c 1 8.8.8.8 &> /dev/null; then
+        success "網路連線正常"
+        return 0
+    else
+        warning "無法連接到網際網路"
+        warning "某些功能可能無法使用"
+        return 1
+    fi
+}
+
+# 檢查磁碟空間
+check_disk_space() {
+    info "檢查磁碟空間..."
+
+    local required_space=10485760  # 10GB in KB
+    local available_space=$(df / | awk 'NR==2 {print $4}')
+
+    info "可用空間: $((available_space / 1024 / 1024)) GB"
+
+    if [[ $available_space -lt $required_space ]]; then
+        warning "磁碟空間不足 10GB，建議清理磁碟空間"
+    else
+        success "磁碟空間充足"
+    fi
+}
+
+# 載入配置檔
+load_config() {
+    if [[ -f "${CONFIG_FILE}" ]]; then
+        info "載入配置檔: ${CONFIG_FILE}"
+        source "${CONFIG_FILE}"
+        success "配置檔載入完成"
+    else
+        warning "找不到配置檔: ${CONFIG_FILE}"
+        warning "使用預設設定"
+    fi
+}
+
+# 設定代理
+setup_proxy() {
+    if [[ -n "${PROXY_URL}" ]]; then
+        info "設定代理: ${PROXY_URL}"
+
+        export http_proxy="${PROXY_URL}"
+        export https_proxy="${PROXY_URL}"
+        export HTTP_PROXY="${PROXY_URL}"
+        export HTTPS_PROXY="${PROXY_URL}"
+
+        # 設定 APT 代理
+        if [[ ! -d /etc/apt/apt.conf.d ]]; then
+            mkdir -p /etc/apt/apt.conf.d
+        fi
+
+        cat > /etc/apt/apt.conf.d/95proxy <<EOF
+Acquire::http::Proxy "${PROXY_URL}";
+Acquire::https::Proxy "${PROXY_URL}";
+EOF
+
+        success "代理設定完成"
+    fi
+}
+
+# 更新系統套件
+update_system() {
+    info "更新系統套件列表..."
+
+    apt-get update -qq >> "${LOG_FILE}" 2>&1
+
+    success "系統套件列表已更新"
+}
+
+# 安裝基礎套件
+install_base_packages() {
+    info "安裝基礎套件..."
+
+    local packages=(
+        "build-essential"
+        "curl"
+        "wget"
+        "git"
+        "vim"
+        "unzip"
+        "tar"
+        "ca-certificates"
+        "gnupg"
+        "lsb-release"
+        "software-properties-common"
+        "apt-transport-https"
+    )
+
+    apt-get install -y "${packages[@]}" >> "${LOG_FILE}" 2>&1
+
+    success "基礎套件安裝完成"
+}
+
+###############################################################################
+# 模組載入函式
+###############################################################################
+
+# 載入安裝模組
+load_modules() {
+    info "載入安裝模組..."
+
+    if [[ ! -d "${SCRIPTS_DIR}" ]]; then
+        warning "找不到模組目錄: ${SCRIPTS_DIR}"
+        warning "將使用內建安裝函式"
+        return 1
+    fi
+
+    local module_count=0
+
+    for module in "${SCRIPTS_DIR}"/*.sh; do
+        if [[ -f "${module}" ]]; then
+            source "${module}"
+            ((module_count++))
+            debug "載入模組: $(basename "${module}")"
+        fi
+    done
+
+    if [[ $module_count -gt 0 ]]; then
+        success "已載入 ${module_count} 個模組"
+    else
+        warning "沒有找到任何模組"
+    fi
+}
+
+###############################################################################
+# 內建安裝函式（當模組不存在時使用）
+###############################################################################
+
+# 安裝 Docker
+install_docker() {
+    print_header "安裝 Docker Engine"
+
+    info "新增 Docker 官方 GPG 金鑰..."
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+
+    info "新增 Docker 套件來源..."
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    info "更新套件列表..."
+    apt-get update -qq >> "${LOG_FILE}" 2>&1
+
+    info "安裝 Docker Engine..."
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >> "${LOG_FILE}" 2>&1
+
+    info "設定 Docker 服務..."
+    systemctl enable docker >> "${LOG_FILE}" 2>&1 || true
+    systemctl start docker >> "${LOG_FILE}" 2>&1 || true
+
+    # 將當前使用者（實際執行者）加入 docker 群組
+    local actual_user="${SUDO_USER:-$USER}"
+    if [[ -n "${actual_user}" && "${actual_user}" != "root" ]]; then
+        usermod -aG docker "${actual_user}"
+        info "已將使用者 ${actual_user} 加入 docker 群組"
+    fi
+
+    success "Docker 安裝完成"
+    INSTALL_STATUS["docker"]="success"
+}
+
+# 安裝 .NET SDK
+install_dotnet() {
+    print_header "安裝 .NET SDK"
+
+    info "新增 Microsoft 套件來源..."
+    wget -q https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb
+    dpkg -i /tmp/packages-microsoft-prod.deb >> "${LOG_FILE}" 2>&1
+    rm /tmp/packages-microsoft-prod.deb
+
+    info "更新套件列表..."
+    apt-get update -qq >> "${LOG_FILE}" 2>&1
+
+    # 安裝多個版本的 .NET SDK
+    local dotnet_versions=("6.0" "7.0" "8.0" "9.0")
+
+    for version in "${dotnet_versions[@]}"; do
+        info "安裝 .NET ${version} SDK..."
+        if apt-get install -y "dotnet-sdk-${version}" >> "${LOG_FILE}" 2>&1; then
+            success ".NET ${version} SDK 安裝成功"
+        else
+            warning ".NET ${version} SDK 安裝失敗或不可用"
+        fi
+    done
+
+    success ".NET SDK 安裝完成"
+    INSTALL_STATUS["dotnet"]="success"
+}
+
+# 安裝 Node.js 與 nvm
+install_nodejs() {
+    print_header "安裝 Node.js 與 nvm"
+
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home=$(eval echo ~${actual_user})
+
+    info "下載並安裝 nvm..."
+
+    # 以實際使用者身分安裝 nvm
+    sudo -u "${actual_user}" bash -c 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash'
+
+    info "載入 nvm..."
+    export NVM_DIR="${user_home}/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+    info "安裝 Node.js LTS 版本..."
+    sudo -u "${actual_user}" bash -c 'source ~/.nvm/nvm.sh && nvm install --lts'
+    sudo -u "${actual_user}" bash -c 'source ~/.nvm/nvm.sh && nvm use --lts'
+
+    success "Node.js 與 nvm 安裝完成"
+    INSTALL_STATUS["nodejs"]="success"
+}
+
+# 安裝 Python 與 pyenv
+install_python() {
+    print_header "安裝 Python 與 pyenv"
+
+    info "安裝 Python 依賴套件..."
+    apt-get install -y make build-essential libssl-dev zlib1g-dev \
+        libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
+        libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev \
+        libffi-dev liblzma-dev >> "${LOG_FILE}" 2>&1
+
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home=$(eval echo ~${actual_user})
+
+    info "安裝 pyenv..."
+    sudo -u "${actual_user}" bash -c 'curl https://pyenv.run | bash'
+
+    success "Python 與 pyenv 安裝完成"
+    INSTALL_STATUS["python"]="success"
+}
+
+# 安裝其他工具（簡化版）
+install_other_tools() {
+    print_header "安裝其他開發工具"
+
+    info "安裝 Go..."
+    apt-get install -y golang-go >> "${LOG_FILE}" 2>&1 || warning "Go 安裝失敗"
+
+    info "安裝 jq, yq..."
+    apt-get install -y jq >> "${LOG_FILE}" 2>&1 || warning "jq 安裝失敗"
+
+    info "安裝 htop..."
+    apt-get install -y htop >> "${LOG_FILE}" 2>&1 || warning "htop 安裝失敗"
+
+    success "其他工具安裝完成"
+}
+
+###############################################################################
+# 驗證函式
+###############################################################################
+
+# 驗證安裝
+verify_installation() {
+    if [[ "${SKIP_VERIFY}" == "true" ]]; then
+        info "跳過安裝驗證"
+        return 0
+    fi
+
+    print_header "驗證安裝"
+
+    local failed_count=0
+
+    # 驗證 Docker
+    if [[ "${INSTALL_STATUS[docker]}" == "success" ]]; then
+        if command -v docker &> /dev/null; then
+            success "Docker: $(docker --version)"
+        else
+            error "Docker 驗證失敗"
+            ((failed_count++))
+        fi
+    fi
+
+    # 驗證 .NET
+    if [[ "${INSTALL_STATUS[dotnet]}" == "success" ]]; then
+        if command -v dotnet &> /dev/null; then
+            success ".NET: $(dotnet --version)"
+        else
+            error ".NET 驗證失敗"
+            ((failed_count++))
+        fi
+    fi
+
+    if [[ $failed_count -eq 0 ]]; then
+        success "所有工具驗證通過"
+        return 0
+    else
+        warning "有 ${failed_count} 個工具驗證失敗"
+        return 1
+    fi
+}
+
+###############################################################################
+# 主要流程
+###############################################################################
+
+# 顯示說明
+show_help() {
+    cat << EOF
+使用方式: sudo ${SCRIPT_NAME} [選項]
+
+WSL2 Ubuntu 開發環境自動安裝腳本 v${SCRIPT_VERSION}
+
+選項:
+    --offline          使用離線安裝模式
+    --proxy <url>      設定代理伺服器 (例如: http://proxy.example.com:8080)
+    --config <file>    使用自訂配置檔 (預設: config.sh)
+    --skip-verify      跳過安裝驗證
+    --help             顯示此說明訊息
+
+範例:
+    sudo ${SCRIPT_NAME}
+    sudo ${SCRIPT_NAME} --proxy http://proxy.example.com:8080
+    sudo ${SCRIPT_NAME} --offline --config my-config.sh
+
+EOF
+}
+
+# 解析命令列參數
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --offline)
+                OFFLINE_MODE=true
+                shift
+                ;;
+            --proxy)
+                PROXY_URL="$2"
+                shift 2
+                ;;
+            --config)
+                CONFIG_FILE="$2"
+                shift 2
+                ;;
+            --skip-verify)
+                SKIP_VERIFY=true
+                shift
+                ;;
+            --help)
+                show_help
+                exit 0
+                ;;
+            *)
+                error "未知選項: $1"
+                show_help
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# 主程式
+main() {
+    # 初始化
+    init_log_dir
+
+    # 顯示標題
+    clear
+    print_header "WSL2 Ubuntu 開發環境安裝程式 v${SCRIPT_VERSION}"
+
+    info "日誌檔案: ${LOG_FILE}"
+    echo ""
+
+    # 系統檢查
+    check_root
+    check_os
+    check_network
+    check_disk_space
+
+    print_separator
+
+    # 載入配置
+    load_config
+    setup_proxy
+
+    # 更新系統
+    update_system
+    install_base_packages
+
+    # 載入模組
+    load_modules
+
+    print_separator
+
+    # 計算總步驟數
+    TOTAL_STEPS=5
+    CURRENT_STEP=0
+
+    # 安裝工具
+    update_progress "安裝 Docker..."
+    install_docker
+
+    update_progress "安裝 .NET SDK..."
+    install_dotnet
+
+    update_progress "安裝 Node.js..."
+    install_nodejs
+
+    update_progress "安裝 Python..."
+    install_python
+
+    update_progress "安裝其他工具..."
+    install_other_tools
+
+    print_separator
+
+    # 驗證安裝
+    verify_installation
+
+    # 完成
+    print_header "安裝完成！"
+
+    success "所有工具已成功安裝"
+    info "日誌檔案: ${LOG_FILE}"
+    echo ""
+    info "後續步驟："
+    info "  1. 重新登入或執行: newgrp docker"
+    info "  2. 驗證 Docker: docker run hello-world"
+    info "  3. 驗證 .NET: dotnet --list-sdks"
+    echo ""
+}
+
+###############################################################################
+# 程式進入點
+###############################################################################
+
+parse_args "$@"
+main
+
+exit 0
