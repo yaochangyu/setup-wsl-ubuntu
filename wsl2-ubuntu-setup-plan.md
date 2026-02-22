@@ -57,7 +57,7 @@
     - 安裝基礎工具（curl、wget、git、vim、build-essential）
     - 設定時區與語系
 
-- [ ] **步驟 5：實作 Docker Engine 安裝模組**
+- [x] **步驟 5：實作 Docker Engine 安裝模組**
   - 目的：在 WSL2 內安裝 Docker
   - 功能：
     - 安裝 Docker Engine
