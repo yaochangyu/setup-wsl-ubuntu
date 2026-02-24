@@ -25,38 +25,43 @@
 
 ## 快速開始
 
-### 步驟 1：安裝 WSL2 和 Ubuntu
+### 步驟 1：啟用 WSL2 功能（需要管理員）
 
-#### 方法 A：使用批次檔（建議）
-
-1. 以**系統管理員身分**開啟檔案總管
-2. 導航到專案目錄
-3. 雙擊執行 `setup-wsl2.bat`
-4. 按照提示完成安裝
-
-#### 方法 B：使用 PowerShell
-
-1. 以**系統管理員身分**開啟 PowerShell
-2. 執行以下命令：
+以**系統管理員身分**開啟 PowerShell，執行：
 
 ```powershell
 cd D:\lab\setup-wsl-ubuntu
-.\setup-wsl2.ps1
+.\setup-wsl2-features.ps1
 ```
 
-#### 安裝過程
+> 完成後可能需要**重新啟動電腦**。
 
-- ✅ 檢查系統需求
-- ✅ 啟用 WSL 和虛擬機平台
-- ✅ 安裝 WSL2 核心更新
-- ✅ 安裝 Ubuntu 22.04 LTS
-- ✅ 設定預設使用者（yao / 123456）
+### 步驟 2：安裝 Ubuntu
 
-**注意：** 安裝完成後可能需要重新啟動電腦。
+重新啟動後，開啟 PowerShell（不需要管理員），執行：
 
-### 步驟 2：安裝開發工具
+```powershell
+cd D:\lab\setup-wsl-ubuntu
+.\setup-ubuntu.ps1
+```
 
-重新啟動後，開啟 Ubuntu（從開始功能表或執行 `wsl`），然後執行：
+預設安裝 Ubuntu 22.04，帳號為 `yao / 123456`。如需自訂：
+
+```powershell
+.\setup-ubuntu.ps1 -UbuntuVersion 24.04 -WslUsername myuser -WslPassword mypassword
+```
+
+### 步驟 3：安裝開發工具
+
+#### 方法 A：使用 PowerShell（建議）
+
+```powershell
+.\install-linux-tools.ps1
+```
+
+#### 方法 B：在 WSL 內直接執行
+
+開啟 Ubuntu（從開始功能表或執行 `wsl`），然後執行：
 
 ```bash
 cd /mnt/d/lab/setup-wsl-ubuntu
@@ -99,26 +104,21 @@ sudo ./install-linux-tools.sh
 
 ## 進階使用
 
-### 自訂配置
+### 指定 Ubuntu 版本
 
-1. 複製配置檔範例：
-```bash
-cp config.example.sh config.sh
-```
-
-2. 編輯 `config.sh` 設定：
-```bash
-vim config.sh
-```
-
-3. 使用自訂配置執行安裝：
-```bash
-sudo ./install-linux-tools.sh --config config.sh
+```powershell
+.\install-linux-tools.ps1 -UbuntuVersion 24.04
 ```
 
 ### 使用代理
 
+```powershell
+# PowerShell
+.\install-linux-tools.ps1 -Proxy http://proxy.example.com:8080
+```
+
 ```bash
+# WSL 內
 sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 ```
 
@@ -136,17 +136,38 @@ sudo ./prepare-offline-packages.sh
 sudo ./install-linux-tools.sh --offline
 ```
 
-### 跳過安裝驗證
+### 自訂配置
 
+1. 複製配置檔範例：
 ```bash
-sudo ./install-linux-tools.sh --skip-verify
+cp config.example.sh config.sh
+```
+
+2. 編輯 `config.sh` 設定：
+```bash
+vim config.sh
+```
+
+3. 使用自訂配置執行安裝：
+```bash
+sudo ./install-linux-tools.sh --config config.sh
 ```
 
 ## 命令列選項
 
-```
-使用方式: sudo ./install-linux-tools.sh [選項]
+### install-linux-tools.ps1
 
+```
+參數:
+  -UbuntuVersion <版本>   目標 Ubuntu 版本（預設: 22.04）
+  -WslUsername <名稱>     WSL 使用者名稱（預設: yao）
+  -Proxy <url>            設定代理伺服器
+  -SkipVerify             跳過安裝驗證
+```
+
+### install-linux-tools.sh
+
+```
 選項:
   --offline          使用離線安裝模式
   --proxy <url>      設定代理伺服器
@@ -159,8 +180,9 @@ sudo ./install-linux-tools.sh --skip-verify
 
 ### 日誌位置
 
-- **Windows 安裝日誌**: `logs/wsl2-setup-YYYYMMDD-HHMMSS.log`
-- **Linux 工具日誌**: `logs/install-YYYYMMDD-HHMMSS.log`
+- **Ubuntu 安裝日誌**: `logs/ubuntu-setup-YYYYMMDD-HHMMSS.log`
+- **Linux 工具日誌（PS1）**: `logs/linux-tools-YYYYMMDD-HHMMSS.log`
+- **Linux 工具日誌（sh）**: `logs/install-YYYYMMDD-HHMMSS.log`
 
 ### 查看日誌
 
@@ -256,9 +278,11 @@ pip --version
 
 ```
 setup-wsl-ubuntu/
-├── setup-wsl2.ps1              # PowerShell 安裝腳本
+├── setup-wsl2-features.ps1     # 步驟 1：啟用 WSL2 Windows 功能（需管理員）
+├── setup-ubuntu.ps1            # 步驟 2：安裝 Ubuntu + 建立使用者
+├── install-linux-tools.ps1     # 步驟 3：從 Windows 呼叫開發工具安裝（PS1 包裝）
+├── install-linux-tools.sh      # 步驟 3：在 Linux 內執行的開發工具安裝腳本
 ├── setup-wsl2.bat              # 批次檔包裝腳本
-├── install-linux-tools.sh      # 主安裝腳本
 ├── uninstall.sh                # 卸載腳本
 ├── prepare-offline-packages.sh # 離線包準備腳本
 ├── config.example.sh           # 配置範本
@@ -317,4 +341,4 @@ MIT License
 
 ---
 
-**最後更新：** 2026-02-22
+**最後更新：** 2026-02-25

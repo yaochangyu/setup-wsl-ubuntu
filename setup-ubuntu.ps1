@@ -28,6 +28,7 @@
 
 .NOTES
     執行前請確認已完成 setup-wsl2-features.ps1（需要管理員）
+    完成後請執行 install-linux-tools.ps1 安裝開發工具
 #>
 
 [CmdletBinding()]
@@ -255,8 +256,7 @@ function Main {
         Write-Log "Ubuntu $UbuntuVersion 安裝完成！" "Success"
         Write-Log "========================================" "Success"
         Write-Log "`n後續步驟："
-        Write-Log "1. 啟動 Ubuntu：在開始功能表搜尋 'Ubuntu $UbuntuVersion' 或執行 'wsl' 命令"
-        Write-Log "2. 執行 Linux 工具安裝腳本：cd /mnt/d/lab/setup-wsl-ubuntu && ./install-linux-tools.sh"
+        Write-Log "1. 執行開發工具安裝腳本：.\install-linux-tools.ps1"
         Write-Log "`n使用者帳號資訊："
         Write-Log "  使用者名稱: $WslUsername"
         Write-Log "  密碼: $WslPassword"
