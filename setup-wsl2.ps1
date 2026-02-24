@@ -26,7 +26,8 @@
 
 [CmdletBinding()]
 param(
-    [string]$LogPath = "$PSScriptRoot\logs"
+    [string]$LogPath = "$PSScriptRoot\logs",
+    [switch]$Force
 )
 
 # ============================================
@@ -117,10 +118,7 @@ function Test-VirtualizationEnabled {
     Write-Log "檢查虛擬化支援..."
 
     try {
-        $hyperv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction SilentlyContinue
-        $vmPlatform = Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -ErrorAction SilentlyContinue
-
-        # 檢查 CPU 虛擬化是否啟用
+        # 只檢查 CPU 虛擬化（Windows 功能狀態由後續 Enable 步驟檢查）
         $processor = Get-CimInstance -ClassName Win32_Processor
         if ($processor.VirtualizationFirmwareEnabled -eq $false) {
             Write-Log "警告：BIOS/UEFI 中的虛擬化功能未啟用。請在 BIOS 中啟用 Intel VT-x 或 AMD-V。" "Warning"
@@ -275,43 +273,62 @@ function Install-Ubuntu {
     Write-Log "安裝 Ubuntu $UbuntuVersion LTS..."
     Write-Progress-Log -Activity "WSL2 安裝" -Status "安裝 Ubuntu $UbuntuVersion" -PercentComplete 60
 
+    $ubuntuDistroName = "Ubuntu-$UbuntuVersion"
+
     try {
-        # 檢查是否已安裝
+        # 檢查是否已安裝目標版本
+        $existingTarget = wsl --list --quiet 2>&1 | Where-Object { $_ -match [regex]::Escape($ubuntuDistroName) }
+        if ($existingTarget) {
+            Write-Log "$ubuntuDistroName 已安裝，跳過安裝步驟" "Success"
+            return $true
+        }
+
+        # 檢查是否有其他 Ubuntu 版本
         $existingDistros = wsl --list --quiet 2>&1 | Where-Object { $_ -match "Ubuntu" }
         if ($existingDistros) {
-            Write-Log "檢測到已安裝的 Ubuntu 發行版：" "Warning"
+            Write-Log "檢測到已安裝的其他 Ubuntu 發行版：" "Warning"
             wsl --list --verbose | ForEach-Object { Write-Log $_ }
 
-            $response = Read-Host "是否要繼續安裝新的 Ubuntu $UbuntuVersion？ (y/N)"
-            if ($response -ne 'y' -and $response -ne 'Y') {
-                Write-Log "使用者取消安裝" "Warning"
-                return $true
+            if (-not $Force) {
+                $response = Read-Host "是否要繼續安裝 $ubuntuDistroName？ (y/N)"
+                if ($response -ne 'y' -and $response -ne 'Y') {
+                    Write-Log "使用者取消安裝" "Warning"
+                    return $true
+                }
+            } else {
+                Write-Log "Force 模式：跳過確認，繼續安裝" "Info"
             }
         }
 
-        # 使用 wsl --install 安裝 Ubuntu
-        Write-Log "正在安裝 Ubuntu-$UbuntuVersion..."
-
-        # 嘗試使用 wsl --install
-        $installCmd = "wsl --install -d Ubuntu-$UbuntuVersion"
+        # 步驟 1: 下載並註冊 distro（--no-launch 避免互動式提示）
+        Write-Log "正在下載 $ubuntuDistroName..."
+        $installCmd = "wsl --install -d $ubuntuDistroName --no-launch"
         Write-Log "執行命令: $installCmd"
-
         Invoke-Expression $installCmd 2>&1 | ForEach-Object { Write-Log $_ }
 
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "wsl --install 失敗" "Error"
+            Write-Log "請嘗試手動執行: wsl --install -d $ubuntuDistroName" "Warning"
+            return $false
+        }
+
+        # 步驟 2: 用 install --root 初始化 distro（非互動式，以 root 為預設使用者）
+        $ubuntuExe = "ubuntu$(($UbuntuVersion).Replace('.',''))"
+        Write-Log "初始化 $ubuntuDistroName（使用 $ubuntuExe install --root）..."
+        & $ubuntuExe install --root 2>&1 | ForEach-Object { Write-Log $_ }
+
         if ($LASTEXITCODE -eq 0) {
-            Write-Log "Ubuntu $UbuntuVersion 安裝命令執行完成" "Success"
+            Write-Log "$ubuntuDistroName 安裝並初始化完成" "Success"
             return $true
         } else {
-            Write-Log "使用 wsl --install 失敗，嘗試從 Microsoft Store 安裝..." "Warning"
+            Write-Log "$ubuntuExe install --root 失敗 (exit code: $LASTEXITCODE)，嘗試備用方案..." "Warning"
 
-            # 備用方案：使用 Microsoft Store
-            Write-Log "請從 Microsoft Store 手動安裝 Ubuntu $UbuntuVersion" "Warning"
-            Write-Log "或使用命令: wsl --install -d Ubuntu-$UbuntuVersion" "Warning"
+            # 備用方案：不加 --no-launch 重新安裝（會進入互動式設定）
+            Write-Log "使用互動式安裝作為備用方案..." "Warning"
+            Write-Log "執行命令: wsl --install -d $ubuntuDistroName" "Warning"
+            Invoke-Expression "wsl --install -d $ubuntuDistroName" 2>&1 | ForEach-Object { Write-Log $_ }
 
-            # 開啟 Microsoft Store
-            Start-Process "ms-windows-store://pdp/?ProductId=9NZ3KLHXDJP5"
-
-            return $false
+            return ($LASTEXITCODE -eq 0)
         }
     }
     catch {
@@ -324,27 +341,22 @@ function Set-UbuntuDefaultUser {
     Write-Log "設定 Ubuntu 預設使用者..."
     Write-Progress-Log -Activity "WSL2 安裝" -Status "設定預設使用者" -PercentComplete 80
 
+    $ubuntuDistroName = "Ubuntu-$UbuntuVersion"
+    $ubuntuExe = "ubuntu$(($UbuntuVersion).Replace('.',''))"
+
     try {
-        # 等待 Ubuntu 完成初始化
-        Write-Log "等待 Ubuntu 初始化..."
-        Start-Sleep -Seconds 5
+        # 檢查 distro 是否已註冊
+        $distros = wsl --list --quiet 2>&1
+        $ubuntuRegistered = $distros | Where-Object { $_ -match [regex]::Escape($ubuntuDistroName) }
 
-        # 檢查 Ubuntu 是否已安裝
-        $distros = wsl --list --verbose 2>&1
-        $ubuntuInstalled = $distros | Select-String -Pattern "Ubuntu.*Running|Ubuntu.*Stopped"
-
-        if (-not $ubuntuInstalled) {
-            Write-Log "Ubuntu 尚未完成安裝，請手動完成初始設定" "Warning"
-            Write-Log "請執行 'ubuntu2404' 或從開始功能表啟動 Ubuntu 24.04" "Warning"
-            Write-Log "首次啟動時，請設定使用者名稱為: $WslUsername" "Warning"
-            Write-Log "密碼為: $WslPassword" "Warning"
-            return $true
+        if (-not $ubuntuRegistered) {
+            Write-Log "$ubuntuDistroName 尚未註冊，無法設定使用者" "Warning"
+            return $false
         }
 
-        # 嘗試設定預設使用者
-        Write-Log "正在設定預設使用者為 $WslUsername..."
+        # 建立使用者
+        Write-Log "正在建立使用者 $WslUsername..."
 
-        # 建立使用者設定指令
         $createUserCmd = @"
 if ! id -u $WslUsername > /dev/null 2>&1; then
     useradd -m -s /bin/bash $WslUsername
@@ -352,20 +364,23 @@ if ! id -u $WslUsername > /dev/null 2>&1; then
     usermod -aG sudo $WslUsername
     echo '$WslUsername ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/$WslUsername
     chmod 0440 /etc/sudoers.d/$WslUsername
+    echo 'User $WslUsername created successfully'
+else
+    echo 'User $WslUsername already exists'
 fi
 "@
 
-        # 執行建立使用者的命令
-        $createUserCmd | wsl -d Ubuntu-$UbuntuVersion -u root bash 2>&1 | ForEach-Object { Write-Log $_ }
+        $createUserCmd | wsl -d $ubuntuDistroName -u root bash 2>&1 | ForEach-Object { Write-Log $_ }
 
         # 設定預設使用者
-        ubuntu2404 config --default-user $WslUsername 2>&1 | ForEach-Object { Write-Log $_ }
+        Write-Log "設定預設使用者為 $WslUsername..."
+        & $ubuntuExe config --default-user $WslUsername 2>&1 | ForEach-Object { Write-Log $_ }
 
         if ($LASTEXITCODE -eq 0) {
             Write-Log "預設使用者設定完成" "Success"
             return $true
         } else {
-            Write-Log "自動設定預設使用者失敗，請手動設定" "Warning"
+            Write-Log "自動設定預設使用者失敗，請手動執行: $ubuntuExe config --default-user $WslUsername" "Warning"
             return $true
         }
     }
@@ -478,7 +493,7 @@ function Main {
         Write-Log "========================================" "Success"
         Write-Log "`n後續步驟："
         Write-Log "1. 可能需要重新啟動電腦以完成安裝"
-        Write-Log "2. 啟動 Ubuntu：在開始功能表搜尋 'Ubuntu 24.04' 或執行 'wsl' 命令"
+        Write-Log "2. 啟動 Ubuntu：在開始功能表搜尋 'Ubuntu $UbuntuVersion' 或執行 'wsl' 命令"
         Write-Log "3. 執行 Linux 工具安裝腳本：cd /mnt/d/lab/setup-wsl-ubuntu && ./install-linux-tools.sh"
         Write-Log "`n使用者帳號資訊："
         Write-Log "  使用者名稱: $WslUsername"
@@ -486,11 +501,15 @@ function Main {
         Write-Log "`n日誌檔案位置: $Global:LogFile"
 
         # 詢問是否重新啟動
-        Write-Host "`n" -NoNewline
-        $restart = Read-Host "是否現在重新啟動電腦？ (y/N)"
-        if ($restart -eq 'y' -or $restart -eq 'Y') {
-            Write-Log "準備重新啟動電腦..."
-            Restart-Computer -Force
+        if (-not $Force) {
+            Write-Host "`n" -NoNewline
+            $restart = Read-Host "是否現在重新啟動電腦？ (y/N)"
+            if ($restart -eq 'y' -or $restart -eq 'Y') {
+                Write-Log "準備重新啟動電腦..."
+                Restart-Computer -Force
+            }
+        } else {
+            Write-Log "Force 模式：跳過重新啟動提示，請手動重新啟動電腦" "Info"
         }
     }
     catch {
