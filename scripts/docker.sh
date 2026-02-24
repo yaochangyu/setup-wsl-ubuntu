@@ -32,7 +32,7 @@ remove_old_docker() {
         if dpkg -l | grep -q "^ii  ${package}"; then
             info "移除舊套件: ${package}"
             apt-get remove -y "${package}" >> "${LOG_FILE}" 2>&1
-            ((removed++))
+            ((removed++)) || true
         fi
     done
 
@@ -81,7 +81,7 @@ add_docker_gpg_key() {
     else
         info "下載 Docker GPG 金鑰..."
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-            gpg --dearmor -o "${gpg_key}" 2>> "${LOG_FILE}"
+            gpg --batch --no-tty --yes --dearmor -o "${gpg_key}" 2>> "${LOG_FILE}"
     fi
 
     if [[ -f "${gpg_key}" ]]; then
@@ -357,7 +357,7 @@ verify_docker_installation() {
         success "Docker: ${docker_version}"
     else
         error "Docker 命令未找到"
-        ((failed++))
+        ((failed++)) || true
     fi
 
     # 檢查 Docker Compose
@@ -375,7 +375,7 @@ verify_docker_installation() {
     else
         warning "Docker 運作測試失敗"
         warning "這可能是正常的，某些環境需要重新登入才能使用 Docker"
-        ((failed++))
+        ((failed++)) || true
     fi
 
     # 檢查 Docker 服務狀態
@@ -398,7 +398,7 @@ verify_docker_installation() {
             success "Docker 服務運作中"
         else
             error "Docker 服務未運作"
-            ((failed++))
+            ((failed++)) || true
         fi
     fi
 

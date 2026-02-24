@@ -103,8 +103,8 @@ function Test-DistroReady {
 
     Write-Log "檢查 $ubuntuDistroName 是否已安裝..."
 
-    [Console]::OutputEncoding = [System.Text.Encoding]::Unicode
     $distros = wsl --list --quiet 2>&1
+
     $found = $distros | Where-Object { $_ -match [regex]::Escape($ubuntuDistroName) }
 
     if (-not $found) {
@@ -125,8 +125,11 @@ function Invoke-LinuxToolsInstall {
 
     Write-Progress-Log -Activity "Linux 工具安裝" -Status "準備安裝腳本" -PercentComplete 10
 
-    # 將 Windows 路徑轉換為 WSL 路徑
-    $wslScriptPath = (wsl -d $ubuntuDistroName -- wslpath -u "$PSScriptRoot\install-linux-tools.sh" 2>&1).Trim()
+    # 將 Windows 路徑轉換為 WSL 路徑（在 PowerShell 內直接轉換，不依賴 wslpath）
+    # 例：D:\lab\setup-wsl-ubuntu\install-linux-tools.sh -> /mnt/d/lab/setup-wsl-ubuntu/install-linux-tools.sh
+    $winPath = Join-Path $PSScriptRoot "install-linux-tools.sh"
+    $driveLetter = $winPath[0].ToString().ToLower()
+    $wslScriptPath = "/mnt/$driveLetter/" + $winPath.Substring(3).Replace("\", "/")
     Write-Log "腳本路徑 (WSL): $wslScriptPath"
 
     # 確認腳本存在
@@ -150,8 +153,13 @@ function Invoke-LinuxToolsInstall {
 
     # 設定 SUDO_USER 讓腳本能正確識別實際使用者（例如加入 docker 群組）
     # 透過 sed 移除 \r 避免 Windows 換行符號造成 bash 錯誤
-    $bashCmd = "SUDO_USER=$WslUsername sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
-    wsl -d $ubuntuDistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object { Write-Log $_ }
+    # TERM=dumb 讓 bash 腳本不輸出 ANSI 色彩碼，避免 PowerShell 捕捉到亂碼
+    $bashCmd = "TERM=dumb SUDO_USER=$WslUsername sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
+    wsl -d $ubuntuDistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
+        # 過濾掉殘留的 ANSI escape code 再寫入 log
+        $line = [regex]::Replace("$_", '\x1b\[[0-9;]*[mKHJ]', '')
+        Write-Log $line
+    }
 
     if ($LASTEXITCODE -eq 0) {
         Write-Log "Linux 工具安裝完成" "Success"
@@ -170,6 +178,9 @@ function Main {
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "Linux 開發工具安裝程式" -ForegroundColor Cyan
     Write-Host "========================================`n" -ForegroundColor Cyan
+
+    # WSL 指令輸出為 UTF-16 LE，統一使用 Unicode encoding
+    [Console]::OutputEncoding = [System.Text.Encoding]::Unicode
 
     Initialize-LogDirectory
     Write-Log "啟動 Linux 工具安裝程式" "Success"

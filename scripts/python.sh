@@ -27,11 +27,15 @@ install_python() {
     fi
 
     info "安裝 pyenv..."
-    sudo -u "${actual_user}" bash -c 'curl https://pyenv.run | bash' >> "${LOG_FILE}" 2>&1
+    if [[ -d "${user_home}/.pyenv" ]]; then
+        info "pyenv 已存在，跳過安裝"
+    else
+        sudo -u "${actual_user}" bash -c 'curl https://pyenv.run | bash' >> "${LOG_FILE}" 2>&1
 
-    if [[ ! -d "${user_home}/.pyenv" ]]; then
-        error "pyenv 安裝失敗"
-        return 1
+        if [[ ! -d "${user_home}/.pyenv" ]]; then
+            error "pyenv 安裝失敗"
+            return 1
+        fi
     fi
 
     success "pyenv 已安裝"

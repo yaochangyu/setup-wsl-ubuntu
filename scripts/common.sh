@@ -157,7 +157,7 @@ setup_base_tools() {
     for tool in "${critical_tools[@]}"; do
         if ! command -v "${tool}" &> /dev/null; then
             error "${tool} 未正確安裝"
-            ((failed++))
+            ((failed++)) || true
         fi
     done
 

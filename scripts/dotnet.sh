@@ -37,7 +37,7 @@ install_dotnet() {
         info "安裝 .NET ${version} SDK..."
         if apt-get install -y "dotnet-sdk-${version}" >> "${LOG_FILE}" 2>&1; then
             success ".NET ${version} SDK 安裝成功"
-            ((installed_count++))
+            ((installed_count++)) || true
         else
             warning ".NET ${version} SDK 安裝失敗或不可用"
         fi

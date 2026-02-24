@@ -139,7 +139,7 @@ show_progress() {
 
 # 更新步驟進度
 update_progress() {
-    ((CURRENT_STEP++))
+    ((CURRENT_STEP++)) || true
     show_progress "${CURRENT_STEP}" "${TOTAL_STEPS}" "$1"
 }
 
@@ -330,7 +330,7 @@ load_modules() {
     for module in "${SCRIPTS_DIR}"/*.sh; do
         if [[ -f "${module}" ]]; then
             source "${module}"
-            ((module_count++))
+            ((module_count++)) || true
             debug "載入模組: $(basename "${module}")"
         fi
     done
@@ -490,7 +490,7 @@ verify_installation() {
             success "Docker: $(docker --version)"
         else
             error "Docker 驗證失敗"
-            ((failed_count++))
+            ((failed_count++)) || true
         fi
     fi
 
@@ -500,7 +500,7 @@ verify_installation() {
             success ".NET: $(dotnet --version)"
         else
             error ".NET 驗證失敗"
-            ((failed_count++))
+            ((failed_count++)) || true
         fi
     fi
 
