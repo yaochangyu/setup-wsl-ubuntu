@@ -52,6 +52,9 @@ readonly COLOR_BLUE='\033[0;34m'
 readonly COLOR_CYAN='\033[0;36m'
 readonly COLOR_BOLD='\033[1m'
 
+# 非互動式環境設定（避免 dpkg/apt 的互動式提示）
+export DEBIAN_FRONTEND=noninteractive
+
 # 安裝選項（預設值）
 OFFLINE_MODE=false
 PROXY_URL=""
@@ -276,6 +279,13 @@ EOF
 
         success "代理設定完成"
     fi
+}
+
+# 修復 dpkg 中斷的套件（非互動式）
+repair_dpkg() {
+    info "修復中斷的 dpkg 套件..."
+    DEBIAN_FRONTEND=noninteractive dpkg --configure -a >> "${LOG_FILE}" 2>&1 || true
+    apt-get install -f -y >> "${LOG_FILE}" 2>&1 || true
 }
 
 # 更新系統套件
@@ -596,7 +606,8 @@ main() {
     load_config
     setup_proxy
 
-    # 更新系統
+    # 修復中斷的套件，再更新系統
+    repair_dpkg
     update_system
     install_base_packages
 
