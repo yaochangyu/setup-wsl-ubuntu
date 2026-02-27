@@ -103,10 +103,10 @@ WSL_PASSWORD=your_password
 
 ### 開發環境
 - ✅ **Docker Engine** - 容器化平台
-- ✅ **.NET SDK** - 6.0, 7.0, 8.0, 9.0
+- ✅ **.NET SDK** - 5.0, 6.0, 7.0, 8.0, 9.0, 10.0
 - ✅ **Node.js** - LTS 版本 + nvm
 - ✅ **Python** - 3.12 + pyenv
-- ✅ **Go** - 最新穩定版
+- ✅ **Go** - 最新穩定版（動態抓取）
 - ✅ **Rust** - 最新穩定版
 
 ### 資料庫工具

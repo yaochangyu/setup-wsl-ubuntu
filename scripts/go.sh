@@ -13,7 +13,16 @@
 install_go() {
     print_header "安裝 Go"
 
-    local go_version="1.22.0"
+    # 從官方 API 取得最新穩定版本號（例如: 1.24.1）
+    info "取得 Go 最新穩定版本..."
+    local go_version
+    go_version=$(curl -fsSL "https://go.dev/VERSION?m=text" | head -1 | sed 's/^go//')
+    if [[ -z "${go_version}" ]]; then
+        warning "無法取得最新版本，使用後備版本 1.24.1"
+        go_version="1.24.1"
+    fi
+    info "目標版本: Go ${go_version}"
+
     local go_url="https://go.dev/dl/go${go_version}.linux-amd64.tar.gz"
     local go_tar="/tmp/go${go_version}.linux-amd64.tar.gz"
 
