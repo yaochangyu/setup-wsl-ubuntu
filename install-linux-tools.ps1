@@ -103,7 +103,7 @@ function Test-DistroReady {
 
     Write-Log "檢查 $ubuntuDistroName 是否已安裝..."
 
-    $distros = wsl --list --quiet 2>&1 | ForEach-Object { $_ -replace '\x00', '' }
+    $distros = wsl --list --quiet 2>&1
 
     $found = $distros | Where-Object { $_ -match [regex]::Escape($ubuntuDistroName) }
 
@@ -151,10 +151,11 @@ function Invoke-LinuxToolsInstall {
     Write-Progress-Log -Activity "Linux 工具安裝" -Status "執行安裝腳本" -PercentComplete 20
     Write-Log "執行: bash install-linux-tools.sh$installArgs（SUDO_USER=$WslUsername）"
 
-    # 設定 SUDO_USER 讓腳本能正確識別實際使用者（例如加入 docker 群組）
+    # export 讓 SUDO_USER/TERM 對 pipe 後的 bash -s 也生效
+    # （VAR=value cmd 前綴只作用於緊接的命令，不繼承至 pipe 後段）
     # 透過 sed 移除 \r 避免 Windows 換行符號造成 bash 錯誤
     # TERM=dumb 讓 bash 腳本不輸出 ANSI 色彩碼，避免 PowerShell 捕捉到亂碼
-    $bashCmd = "TERM=dumb SUDO_USER=$WslUsername sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
+    $bashCmd = "export SUDO_USER=$WslUsername TERM=dumb; sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
     wsl -d $ubuntuDistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
         # 過濾掉殘留的 ANSI escape code 再寫入 log
         $line = [regex]::Replace("$_", '\x1b\[[0-9;]*[mKHJ]', '')
