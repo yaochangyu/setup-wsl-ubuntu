@@ -101,6 +101,14 @@ sudo ./install-linux-tools.sh
 - ✅ htop - 系統監控
 - ✅ tmux - 終端多工
 - ✅ zsh + oh-my-zsh - 強化 Shell
+- ✅ Starship - 華麗的 Bash 提示符號（catppuccin-powerline 主題）
+- ✅ better-rm - 更安全的 rm（刪除前移至垃圾桶）
+
+### 使用者環境
+- ✅ ~/.profile - WINDOWS_USERNAME、JQ_COLORS、EDITOR、GPG_TTY
+- ✅ ~/.bashrc - Bash 補全設定、Starship 初始化
+- ✅ SSH 金鑰（RSA 4096）自動產生
+- ✅ ~/projects 工作目錄建立
 
 ## 進階使用
 
@@ -290,7 +298,7 @@ setup-wsl-ubuntu/
 ├── logs/                       # 安裝日誌
 ├── offline-packages/           # 離線安裝包
 └── scripts/                    # 模組化腳本
-    ├── common.sh               # 共用函式
+    ├── common.sh               # 基礎系統、Bash 環境、CLI 工具
     ├── docker.sh               # Docker 安裝
     ├── dotnet.sh               # .NET SDK 安裝
     ├── nodejs.sh               # Node.js 安裝
@@ -300,8 +308,7 @@ setup-wsl-ubuntu/
     ├── vscode.sh               # VS Code Server
     ├── vim.sh                  # Vim 配置
     ├── database.sh             # 資料庫工具
-    ├── devops.sh               # DevOps 工具
-    └── cli-tools.sh            # CLI 工具
+    └── devops.sh               # DevOps 工具
 ```
 
 ## 常見問題 (FAQ)
@@ -341,4 +348,4 @@ MIT License
 
 ---
 
-**最後更新：** 2026-02-25
+**最後更新：** 2026-02-27

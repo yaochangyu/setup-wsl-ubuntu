@@ -499,6 +499,11 @@ main() {
         setup_base_system
     fi
 
+    update_progress "安裝 CLI 工具..."
+    if declare -f install_cli_tools &> /dev/null; then
+        install_cli_tools
+    fi
+    
     update_progress "安裝 Docker..."
     if declare -f install_docker &> /dev/null; then
         install_docker
@@ -547,11 +552,6 @@ main() {
     update_progress "安裝 DevOps 工具..."
     if declare -f install_devops_tools &> /dev/null; then
         install_devops_tools
-    fi
-
-    update_progress "安裝 CLI 工具..."
-    if declare -f install_cli_tools &> /dev/null; then
-        install_cli_tools
     fi
 
     print_separator
