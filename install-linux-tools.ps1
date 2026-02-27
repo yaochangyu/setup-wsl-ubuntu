@@ -57,7 +57,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Global:LogFile    = ""
-$Script:DistroName = ""   # 執行期間使用的發行版完整名稱（例如: Ubuntu-24.04、Debian）
 
 # ============================================
 # 環境變數設定
@@ -121,6 +120,39 @@ function Write-Progress-Log {
 
     Write-Progress -Activity $Activity -Status $Status -PercentComplete $PercentComplete
     Write-Log "$Activity - $Status ($PercentComplete%)"
+}
+
+# ============================================
+# 發行版選單（已安裝）
+# ============================================
+
+function Select-InstalledDistro {
+    Write-Host "取得已安裝的 WSL 發行版..." -ForegroundColor Cyan
+
+    $rawList = wsl --list --quiet 2>&1
+    $distros = $rawList |
+        Where-Object { $_.Trim() -ne "" } |
+        ForEach-Object { $_.Trim() }
+
+    if (-not $distros) {
+        Write-Host "找不到已安裝的 WSL 發行版，請先執行 setup-linux.ps1" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host ""
+    Write-Host "請選擇要安裝開發工具的 WSL 發行版：" -ForegroundColor Cyan
+    Write-Host ""
+    for ($i = 0; $i -lt $distros.Count; $i++) {
+        Write-Host "  $($i + 1)) $($distros[$i])" -ForegroundColor White
+    }
+    Write-Host ""
+
+    do {
+        $choice = Read-Host "請輸入選項 [1-$($distros.Count)]"
+        $idx    = [int]$choice - 1
+    } while ($choice -notmatch '^\d+$' -or $idx -lt 0 -or $idx -ge $distros.Count)
+
+    return $distros[$idx]
 }
 
 # ============================================
@@ -210,16 +242,17 @@ function Main {
     if (-not $UbuntuVersion) { $UbuntuVersion = $dotenv['UBUNTU_VERSION'] }
     if (-not $WslUsername)   { $WslUsername   = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao' } }
 
-    # 正規化發行版名稱：
-    # - $DistroName 已設定（例如: Ubuntu-24.04、Debian）→ 直接使用
-    # - $UbuntuVersion 設定為版本號（例如: 24.04）→ 轉換為 Ubuntu-24.04（向下相容）
-    # - 兩者皆未設定 → 使用預設值 Ubuntu-24.04
+    # 正規化發行版名稱（優先順序：參數 > .env DISTRO_NAME > .env UBUNTU_VERSION > 互動選單）：
+    # - $DistroName 已設定（例如: Ubuntu-24.04、Debian）→ 直接使用，跳過選單
+    # - $UbuntuVersion 設定為版本號（例如: 24.04）→ 轉換為 Ubuntu-24.04，跳過選單（向下相容）
+    # - 兩者皆未設定 → 顯示已安裝的發行版選單
     if ($DistroName) {
         $Script:DistroName = $DistroName
     } elseif ($UbuntuVersion -match '^\d+\.\d+$') {
         $Script:DistroName = "Ubuntu-$UbuntuVersion"
     } else {
-        $Script:DistroName = "Ubuntu-24.04"
+        $Script:DistroName = Select-InstalledDistro
+        Write-Host ""
     }
 
     Write-Host "========================================" -ForegroundColor Cyan

@@ -51,7 +51,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Global:LogFile    = ""
-$Script:DistroName = ""   # 執行期間使用的發行版完整名稱（例如: Ubuntu-24.04、Debian）
 
 # ============================================
 # 環境變數設定
