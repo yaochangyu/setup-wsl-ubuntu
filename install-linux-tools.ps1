@@ -52,6 +52,13 @@ $ErrorActionPreference = "Stop"
 $Global:LogFile = ""
 
 # ============================================
+# 環境變數設定
+# ============================================
+$env:WSL_UTF8 = 1          # 強制 wsl.exe 以 UTF-8 輸出，避免 wsl --list 亂碼
+$Script:BashTerm = "dumb"  # 關閉 bash ANSI 色彩碼，避免 PowerShell 輸出亂碼
+# SUDO_USER - 傳遞給 bash 腳本，識別實際非 root 使用者（由 WslUsername 參數決定）
+
+# ============================================
 # 日誌與輸出函式
 # ============================================
 
@@ -155,7 +162,7 @@ function Invoke-LinuxToolsInstall {
     # （VAR=value cmd 前綴只作用於緊接的命令，不繼承至 pipe 後段）
     # 透過 sed 移除 \r 避免 Windows 換行符號造成 bash 錯誤
     # TERM=dumb 讓 bash 腳本不輸出 ANSI 色彩碼，避免 PowerShell 捕捉到亂碼
-    $bashCmd = "export SUDO_USER=$WslUsername TERM=dumb; sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
+    $bashCmd = "export SUDO_USER=$WslUsername TERM=$Script:BashTerm; sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
     wsl -d $ubuntuDistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
         # 過濾掉殘留的 ANSI escape code 再寫入 log
         $line = [regex]::Replace("$_", '\x1b\[[0-9;]*[mKHJ]', '')
@@ -180,7 +187,6 @@ function Main {
     Write-Host "Linux 開發工具安裝程式" -ForegroundColor Cyan
     Write-Host "========================================`n" -ForegroundColor Cyan
 
-    $env:WSL_UTF8 = 1
     [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     # 隱藏 Write-Progress 視覺進度條，避免殘影（]）出現在日誌輸出中
     $ProgressPreference = 'SilentlyContinue'
@@ -204,21 +210,21 @@ function Main {
 
         Write-Progress-Log -Activity "Linux 工具安裝" -Status "安裝完成" -PercentComplete 100
 
-        Write-Log "`n========================================" "Success"
+        Write-Log "========================================" "Success"
         Write-Log "Linux 工具安裝完成！" "Success"
         Write-Log "========================================" "Success"
-        Write-Log "`n後續步驟："
+        Write-Log "後續步驟："
         Write-Log "1. 重新登入 Ubuntu 後執行: newgrp docker（讓 docker 群組生效）"
         Write-Log "2. 驗證 Docker: docker run hello-world"
         Write-Log "3. 驗證 .NET: dotnet --list-sdks"
-        Write-Log "`n日誌檔案位置: $Global:LogFile"
+        Write-Log "日誌檔案位置: $Global:LogFile"
     }
     catch {
-        Write-Log "`n========================================" "Error"
+        Write-Log "========================================" "Error"
         Write-Log "安裝過程發生錯誤" "Error"
         Write-Log "錯誤訊息: $($_.Exception.Message)" "Error"
         Write-Log "========================================" "Error"
-        Write-Log "`n請檢查日誌檔案: $Global:LogFile" "Error"
+        Write-Log "請檢查日誌檔案: $Global:LogFile" "Error"
         exit 1
     }
     finally {

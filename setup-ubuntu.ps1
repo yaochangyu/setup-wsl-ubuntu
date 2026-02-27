@@ -45,6 +45,11 @@ $ErrorActionPreference = "Stop"
 $Global:LogFile = ""
 
 # ============================================
+# 環境變數設定
+# ============================================
+$env:WSL_UTF8 = 1   # 強制 wsl.exe 以 UTF-8 輸出，避免 wsl --list 亂碼
+
+# ============================================
 # 日誌與輸出函式
 # ============================================
 
@@ -231,7 +236,6 @@ function Main {
     Write-Host "Ubuntu $UbuntuVersion LTS 安裝程式" -ForegroundColor Cyan
     Write-Host "========================================`n" -ForegroundColor Cyan
 
-    $env:WSL_UTF8 = 1
     [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     # 隱藏 Write-Progress 視覺進度條，避免殘影（]）出現在日誌輸出中
     $ProgressPreference = 'SilentlyContinue'

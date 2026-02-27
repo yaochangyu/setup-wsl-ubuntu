@@ -52,8 +52,11 @@ readonly COLOR_BLUE='\033[0;34m'
 readonly COLOR_CYAN='\033[0;36m'
 readonly COLOR_BOLD='\033[1m'
 
-# 非互動式環境設定（避免 dpkg/apt 的互動式提示）
-export DEBIAN_FRONTEND=noninteractive
+###############################################################################
+# 環境變數（未設定時使用預設值；可由外部環境或 config.sh 覆蓋）
+###############################################################################
+: "${DEBUG:=false}"                      # 啟用除錯輸出（export DEBUG=true）
+export DEBIAN_FRONTEND=noninteractive    # 禁用 dpkg/apt 互動式提示
 
 # 安裝選項（預設值）
 OFFLINE_MODE=false
