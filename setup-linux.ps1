@@ -305,14 +305,13 @@ function Main {
 
     # 從 .env 載入設定，優先順序：參數 > .env > 選單/後備預設值
     $dotenv = Read-DotEnv
-    if (-not $DistroName)    { $DistroName    = $dotenv['DISTRO_NAME']    }
-    if (-not $UbuntuVersion) { $UbuntuVersion = $dotenv['UBUNTU_VERSION'] }
-    if (-not $WslUsername)   { $WslUsername   = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao'      } }
-    if (-not $WslPassword)   { $WslPassword   = if ($dotenv['WSL_PASSWORD']) { $dotenv['WSL_PASSWORD'] } else { 'changeme' } }
+    if (-not $DistroName)  { $DistroName  = $dotenv['DISTRO_NAME'] }
+    if (-not $WslUsername) { $WslUsername = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao'      } }
+    if (-not $WslPassword) { $WslPassword = if ($dotenv['WSL_PASSWORD']) { $dotenv['WSL_PASSWORD'] } else { 'changeme' } }
 
-    # 正規化發行版名稱：
-    # - $DistroName 已設定（例如: Ubuntu-24.04、Debian）→ 直接使用
-    # - $UbuntuVersion 設定為版本號（例如: 24.04）→ 轉換為 Ubuntu-24.04（向下相容）
+    # 正規化發行版名稱（.env UBUNTU_VERSION 不在此處套用，僅供 install-linux-tools.ps1 獨立執行使用）：
+    # - $DistroName 已設定（來自參數或 .env DISTRO_NAME）→ 直接使用，跳過選單
+    # - $UbuntuVersion 以命令列參數傳入（例如: 24.04）→ 轉換為 Ubuntu-24.04，跳過選單（向下相容）
     # - 兩者皆未設定 → 顯示互動選單
     if ($DistroName) {
         $Script:DistroName = $DistroName
