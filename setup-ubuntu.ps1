@@ -33,12 +33,12 @@
 
 [CmdletBinding()]
 param(
-    [string]$UbuntuVersion = "22.04",
-    [string]$WslUsername = "yao",
-    [string]$WslPassword = "123456",
-    [string]$Proxy = "",
+    [string]$UbuntuVersion = "",   # 優先順序：參數 > .env UBUNTU_VERSION > "22.04"
+    [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME   > "yao"
+    [string]$WslPassword   = "",   # 優先順序：參數 > .env WSL_PASSWORD   > "changeme"
+    [string]$Proxy         = "",
     [switch]$SkipVerify,
-    [string]$LogPath = "$PSScriptRoot\logs"
+    [string]$LogPath       = "$PSScriptRoot\logs"
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,6 +52,20 @@ $env:WSL_UTF8 = 1   # 強制 wsl.exe 以 UTF-8 輸出，避免 wsl --list 亂碼
 # ============================================
 # 日誌與輸出函式
 # ============================================
+
+function Read-DotEnv {
+    $envFile = Join-Path $PSScriptRoot ".env"
+    $result = @{}
+    if (Test-Path $envFile) {
+        Get-Content $envFile | ForEach-Object {
+            $line = $_.Trim()
+            if ($line -and $line -notmatch '^\s*#' -and $line -match '^([^=]+)=(.*)$') {
+                $result[$Matches[1].Trim()] = $Matches[2].Trim()
+            }
+        }
+    }
+    return $result
+}
 
 function Initialize-LogDirectory {
     if (-not (Test-Path $LogPath)) {
@@ -232,17 +246,24 @@ function Test-Installation {
 # ============================================
 
 function Main {
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "Ubuntu $UbuntuVersion LTS 安裝程式" -ForegroundColor Cyan
-    Write-Host "========================================`n" -ForegroundColor Cyan
-
     [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     # 隱藏 Write-Progress 視覺進度條，避免殘影（]）出現在日誌輸出中
     $ProgressPreference = 'SilentlyContinue'
 
+    # 從 .env 載入設定，參數 > .env > 後備預設值
+    $dotenv = Read-DotEnv
+    if (-not $UbuntuVersion) { $UbuntuVersion = if ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { '22.04'    } }
+    if (-not $WslUsername)   { $WslUsername   = if ($dotenv['WSL_USERNAME'])   { $dotenv['WSL_USERNAME']   } else { 'yao'      } }
+    if (-not $WslPassword)   { $WslPassword   = if ($dotenv['WSL_PASSWORD'])   { $dotenv['WSL_PASSWORD']   } else { 'changeme' } }
+
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "Ubuntu $UbuntuVersion LTS 安裝程式" -ForegroundColor Cyan
+    Write-Host "========================================`n" -ForegroundColor Cyan
+
     Initialize-LogDirectory
     Write-Log "啟動 Ubuntu 安裝程式" "Success"
     Write-Log "日誌檔案: $Global:LogFile"
+    if (Test-Path (Join-Path $PSScriptRoot ".env")) { Write-Log "已載入 .env 設定檔" }
     Write-Log "Ubuntu 版本: $UbuntuVersion"
     Write-Log "WSL 使用者: $WslUsername"
 
