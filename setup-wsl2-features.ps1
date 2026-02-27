@@ -20,7 +20,7 @@
 
 .NOTES
     需要管理員權限執行
-    完成後執行 setup-ubuntu.ps1 安裝 Ubuntu（不需管理員）
+    完成後執行 setup-linux.ps1 安裝 Linux 發行版（不需管理員）
 #>
 
 [CmdletBinding()]
@@ -288,7 +288,7 @@ function Main {
         Write-Log "========================================" "Success"
         Write-Log "`n後續步驟："
         Write-Log "1. 可能需要重新啟動電腦以完成功能啟用"
-        Write-Log "2. 重新啟動後，執行 setup-ubuntu.ps1 安裝 Ubuntu（不需管理員）"
+        Write-Log "2. 重新啟動後，執行 setup-linux.ps1 安裝 Linux 發行版（不需管理員）"
         Write-Log "`n日誌檔案位置: $Global:LogFile"
     }
     catch {

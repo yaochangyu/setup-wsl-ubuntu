@@ -1,13 +1,13 @@
-# WSL2 Ubuntu 開發環境自動設置
+# WSL2 Linux 開發環境自動設置
 
-一鍵安裝 WSL2 + Ubuntu 22.04 LTS 完整開發環境，適用於 .NET、前端、全端、DevOps 等多種開發場景。
+一鍵安裝 WSL2 + Linux 發行版完整開發環境，支援 Ubuntu、Debian、Kali Linux 等多種發行版，適用於 .NET、前端、全端、DevOps 等多種開發場景。
 
 ## 功能特色
 
 ✅ **自動化安裝** - PowerShell 和 Bash 腳本全自動安裝
+✅ **發行版選單** - 互動式選單，支援所有 `wsl --list --online` 的發行版
 ✅ **模組化設計** - 每個工具獨立模組，易於維護
 ✅ **完整日誌** - 詳細的安裝日誌與錯誤追蹤
-✅ **離線支援** - 支援離線安裝模式
 ✅ **代理設定** - 支援企業環境代理配置
 ✅ **自動驗證** - 安裝後自動驗證所有工具
 
@@ -17,7 +17,7 @@
 - Windows 10 版本 1903 或更高（Build 18362+）
 - Windows 11（所有版本）
 - 至少 10GB 可用磁碟空間
-- 網路連線（或準備好離線安裝包）
+- 網路連線
 
 ### 硬體需求
 - 支援虛擬化的 CPU（Intel VT-x 或 AMD-V）
@@ -36,19 +36,24 @@ cd D:\lab\setup-wsl-ubuntu
 
 > 完成後可能需要**重新啟動電腦**。
 
-### 步驟 2：安裝 Ubuntu
+### 步驟 2：安裝 Linux 發行版
 
 重新啟動後，開啟 PowerShell（不需要管理員），執行：
 
 ```powershell
 cd D:\lab\setup-wsl-ubuntu
-.\setup-ubuntu.ps1
+.\setup-linux.ps1
 ```
 
-預設安裝 Ubuntu 22.04，帳號為 `yao / 123456`。如需自訂：
+未指定發行版時會顯示互動式選單，列出所有可用的 WSL 發行版供選擇。預設安裝 Ubuntu 24.04，帳號為 `yao / changeme`。
+
+如需直接指定：
 
 ```powershell
-.\setup-ubuntu.ps1 -UbuntuVersion 24.04 -WslUsername myuser -WslPassword mypassword
+# 指定發行版完整名稱（建議）
+.\setup-linux.ps1 -DistroName Ubuntu-24.04 -WslUsername myuser -WslPassword mypassword
+
+# 或透過 .env 檔案設定（詳見「環境設定檔」章節）
 ```
 
 ### 步驟 3：安裝開發工具
@@ -61,12 +66,33 @@ cd D:\lab\setup-wsl-ubuntu
 
 #### 方法 B：在 WSL 內直接執行
 
-開啟 Ubuntu（從開始功能表或執行 `wsl`），然後執行：
+開啟 Linux（從開始功能表或執行 `wsl`），然後執行：
 
 ```bash
 cd /mnt/d/lab/setup-wsl-ubuntu
 sudo ./install-linux-tools.sh
 ```
+
+## 環境設定檔
+
+敏感資訊（帳號、密碼）建議透過 `.env` 檔案管理，避免直接寫在命令列：
+
+```bash
+cp .env.example .env
+```
+
+編輯 `.env`：
+
+```ini
+# 指定發行版（可選，未設定則顯示互動選單）
+DISTRO_NAME=Ubuntu-24.04
+
+# WSL 使用者帳號
+WSL_USERNAME=your_username
+WSL_PASSWORD=your_password
+```
+
+> `.env` 已加入 `.gitignore`，不會被納入版控。
 
 ## 已安裝的工具
 
@@ -112,10 +138,16 @@ sudo ./install-linux-tools.sh
 
 ## 進階使用
 
-### 指定 Ubuntu 版本
+### 選擇發行版
 
 ```powershell
-.\install-linux-tools.ps1 -UbuntuVersion 24.04
+# 互動式選單（未指定時自動顯示）
+.\setup-linux.ps1
+
+# 直接指定發行版
+.\setup-linux.ps1 -DistroName Debian
+.\setup-linux.ps1 -DistroName kali-linux
+.\setup-linux.ps1 -DistroName Ubuntu-24.04
 ```
 
 ### 使用代理
@@ -130,44 +162,26 @@ sudo ./install-linux-tools.sh
 sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 ```
 
-### 離線安裝
-
-1. 在有網路的環境下準備離線包：
-```bash
-sudo ./prepare-offline-packages.sh
-```
-
-2. 將 `offline-packages/` 目錄複製到離線環境
-
-3. 執行離線安裝：
-```bash
-sudo ./install-linux-tools.sh --offline
-```
-
-### 自訂配置
-
-1. 複製配置檔範例：
-```bash
-cp config.example.sh config.sh
-```
-
-2. 編輯 `config.sh` 設定：
-```bash
-vim config.sh
-```
-
-3. 使用自訂配置執行安裝：
-```bash
-sudo ./install-linux-tools.sh --config config.sh
-```
-
 ## 命令列選項
+
+### setup-linux.ps1
+
+```
+參數:
+  -DistroName <名稱>      WSL 發行版完整名稱（預設: 互動選單）
+                          例: Ubuntu-24.04、Debian、kali-linux
+  -WslUsername <名稱>     WSL 使用者名稱（預設: yao）
+  -WslPassword <密碼>     WSL 使用者密碼（預設: changeme）
+  -Proxy <url>            設定代理伺服器
+  -SkipVerify             跳過安裝驗證
+```
 
 ### install-linux-tools.ps1
 
 ```
 參數:
-  -UbuntuVersion <版本>   目標 Ubuntu 版本（預設: 22.04）
+  -DistroName <名稱>      WSL 發行版完整名稱（預設: Ubuntu-24.04）
+                          例: Ubuntu-24.04、Debian、kali-linux
   -WslUsername <名稱>     WSL 使用者名稱（預設: yao）
   -Proxy <url>            設定代理伺服器
   -SkipVerify             跳過安裝驗證
@@ -177,9 +191,7 @@ sudo ./install-linux-tools.sh --config config.sh
 
 ```
 選項:
-  --offline          使用離線安裝模式
   --proxy <url>      設定代理伺服器
-  --config <file>    使用自訂配置檔
   --skip-verify      跳過安裝驗證
   --help             顯示說明訊息
 ```
@@ -188,7 +200,7 @@ sudo ./install-linux-tools.sh --config config.sh
 
 ### 日誌位置
 
-- **Ubuntu 安裝日誌**: `logs/ubuntu-setup-YYYYMMDD-HHMMSS.log`
+- **發行版安裝日誌**: `logs/ubuntu-setup-YYYYMMDD-HHMMSS.log`
 - **Linux 工具日誌（PS1）**: `logs/linux-tools-YYYYMMDD-HHMMSS.log`
 - **Linux 工具日誌（sh）**: `logs/install-YYYYMMDD-HHMMSS.log`
 
@@ -287,16 +299,12 @@ pip --version
 ```
 setup-wsl-ubuntu/
 ├── setup-wsl2-features.ps1     # 步驟 1：啟用 WSL2 Windows 功能（需管理員）
-├── setup-ubuntu.ps1            # 步驟 2：安裝 Ubuntu + 建立使用者
+├── setup-linux.ps1            # 步驟 2：安裝 Linux 發行版 + 建立使用者
 ├── install-linux-tools.ps1     # 步驟 3：從 Windows 呼叫開發工具安裝（PS1 包裝）
 ├── install-linux-tools.sh      # 步驟 3：在 Linux 內執行的開發工具安裝腳本
-├── setup-wsl2.bat              # 批次檔包裝腳本
-├── uninstall.sh                # 卸載腳本
-├── prepare-offline-packages.sh # 離線包準備腳本
-├── config.example.sh           # 配置範本
+├── .env.example                # 環境設定範本（複製為 .env 後填入實際值）
 ├── README.md                   # 本文檔
 ├── logs/                       # 安裝日誌
-├── offline-packages/           # 離線安裝包
 └── scripts/                    # 模組化腳本
     ├── common.sh               # 基礎系統、Bash 環境、CLI 工具
     ├── docker.sh               # Docker 安裝
@@ -317,16 +325,16 @@ setup-wsl-ubuntu/
 A: 視網路速度而定，通常 15-30 分鐘。
 
 ### Q: 可以選擇性安裝某些工具嗎？
-A: 可以，請修改 `install-linux-tools.sh` 或建立自訂配置。
+A: 可以，請修改 `install-linux-tools.sh` 中需要的模組。
 
-### Q: 支援其他 Linux 發行版嗎？
-A: 目前針對 Ubuntu 22.04 優化，其他發行版可能需要調整。
+### Q: 支援哪些 Linux 發行版？
+A: 支援所有 `wsl --list --online` 列出的發行版（Ubuntu、Debian、Kali Linux、openSUSE 等）。開發工具安裝腳本以 Ubuntu/Debian 系為主，其他發行版可能需要調整。
 
 ### Q: 如何更新已安裝的工具？
 A: 大部分工具可以使用各自的更新命令（如 `apt update`、`nvm install`）。
 
-### Q: 可以在實體 Ubuntu 上使用嗎？
-A: 可以，`install-linux-tools.sh` 可在任何 Ubuntu 系統上執行。
+### Q: 可以在實體 Linux 上使用嗎？
+A: 可以，`install-linux-tools.sh` 可在任何 Ubuntu/Debian 系統上執行。
 
 ## 貢獻
 

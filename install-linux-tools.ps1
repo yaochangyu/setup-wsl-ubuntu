@@ -1,15 +1,18 @@
 <#
 .SYNOPSIS
-    在指定的 WSL Ubuntu 中執行開發工具安裝腳本
+    在指定的 WSL Linux 發行版中執行開發工具安裝腳本
 
 .DESCRIPTION
     此腳本會執行以下操作：
-    1. 確認目標 Ubuntu distro 已安裝並正常運作
+    1. 確認目標 Linux 發行版已安裝並正常運作
     2. 將 Windows 路徑轉換為 WSL 路徑
     3. 以 root 身分執行 install-linux-tools.sh
 
+.PARAMETER DistroName
+    WSL 發行版完整名稱（例如: Ubuntu-24.04、Debian），優先順序：參數 > .env DISTRO_NAME > UbuntuVersion 推導
+
 .PARAMETER UbuntuVersion
-    目標 Ubuntu 版本，預設為 22.04
+    Ubuntu 版本號（例如: 24.04），向下相容用；若 DistroName 未設定則自動轉換為 Ubuntu-24.04
 
 .PARAMETER WslUsername
     WSL 使用者名稱，用於設定工具的擁有者（例如加入 docker 群組），預設為 yao
@@ -27,6 +30,9 @@
     .\install-linux-tools.ps1
 
 .EXAMPLE
+    .\install-linux-tools.ps1 -DistroName Ubuntu-24.04
+
+.EXAMPLE
     .\install-linux-tools.ps1 -UbuntuVersion 24.04
 
 .EXAMPLE
@@ -36,20 +42,22 @@
     .\install-linux-tools.ps1 -SkipVerify
 
 .NOTES
-    執行前請確認已完成 setup-ubuntu.ps1
+    執行前請確認已完成 setup-linux.ps1
 #>
 
 [CmdletBinding()]
 param(
-    [string]$UbuntuVersion = "",   # 優先順序：參數 > .env UBUNTU_VERSION > "22.04"
-    [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME   > "yao"
+    [string]$DistroName    = "",   # 優先順序：參數 > .env DISTRO_NAME > UbuntuVersion 推導
+    [string]$UbuntuVersion = "",   # 向下相容：24.04 → Ubuntu-24.04
+    [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
     [string]$Proxy         = "",
     [switch]$SkipVerify,
     [string]$LogPath       = "$PSScriptRoot\logs"
 )
 
 $ErrorActionPreference = "Stop"
-$Global:LogFile = ""
+$Global:LogFile    = ""
+$Script:DistroName = ""   # 執行期間使用的發行版完整名稱（例如: Ubuntu-24.04、Debian）
 
 # ============================================
 # 環境變數設定
@@ -120,20 +128,17 @@ function Write-Progress-Log {
 # ============================================
 
 function Test-DistroReady {
-    $ubuntuDistroName = "Ubuntu-$UbuntuVersion"
-
-    Write-Log "檢查 $ubuntuDistroName 是否已安裝..."
+    Write-Log "檢查 $Script:DistroName 是否已安裝..."
 
     $distros = wsl --list --quiet 2>&1
-
-    $found = $distros | Where-Object { $_ -match [regex]::Escape($ubuntuDistroName) }
+    $found   = $distros | Where-Object { $_ -match [regex]::Escape($Script:DistroName) }
 
     if (-not $found) {
-        Write-Log "$ubuntuDistroName 尚未安裝，請先執行 setup-ubuntu.ps1" "Error"
+        Write-Log "$Script:DistroName 尚未安裝，請先執行 setup-linux.ps1" "Error"
         return $false
     }
 
-    Write-Log "$ubuntuDistroName 已就緒" "Success"
+    Write-Log "$Script:DistroName 已就緒" "Success"
     return $true
 }
 
@@ -142,8 +147,6 @@ function Test-DistroReady {
 # ============================================
 
 function Invoke-LinuxToolsInstall {
-    $ubuntuDistroName = "Ubuntu-$UbuntuVersion"
-
     Write-Progress-Log -Activity "Linux 工具安裝" -Status "準備安裝腳本" -PercentComplete 10
 
     # 將 Windows 路徑轉換為 WSL 路徑（在 PowerShell 內直接轉換，不依賴 wslpath）
@@ -154,7 +157,7 @@ function Invoke-LinuxToolsInstall {
     Write-Log "腳本路徑 (WSL): $wslScriptPath"
 
     # 確認腳本存在
-    wsl -d $ubuntuDistroName -u root -- test -f $wslScriptPath 2>&1 | Out-Null
+    wsl -d $Script:DistroName -u root -- test -f $wslScriptPath 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Log "找不到安裝腳本: $wslScriptPath" "Error"
         return $false
@@ -177,7 +180,7 @@ function Invoke-LinuxToolsInstall {
     # 透過 sed 移除 \r 避免 Windows 換行符號造成 bash 錯誤
     # TERM=dumb 讓 bash 腳本不輸出 ANSI 色彩碼，避免 PowerShell 捕捉到亂碼
     $bashCmd = "export SUDO_USER=$WslUsername TERM=$Script:BashTerm; sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
-    wsl -d $ubuntuDistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
+    wsl -d $Script:DistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
         # 過濾掉殘留的 ANSI escape code 再寫入 log
         $line = [regex]::Replace("$_", '\x1b\[[0-9;]*[mKHJ]', '')
         Write-Log $line
@@ -203,8 +206,21 @@ function Main {
 
     # 從 .env 載入設定，參數 > .env > 後備預設值
     $dotenv = Read-DotEnv
-    if (-not $UbuntuVersion) { $UbuntuVersion = if ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { '22.04' } }
-    if (-not $WslUsername)   { $WslUsername   = if ($dotenv['WSL_USERNAME'])   { $dotenv['WSL_USERNAME']   } else { 'yao'   } }
+    if (-not $DistroName)    { $DistroName    = $dotenv['DISTRO_NAME']    }
+    if (-not $UbuntuVersion) { $UbuntuVersion = $dotenv['UBUNTU_VERSION'] }
+    if (-not $WslUsername)   { $WslUsername   = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao' } }
+
+    # 正規化發行版名稱：
+    # - $DistroName 已設定（例如: Ubuntu-24.04、Debian）→ 直接使用
+    # - $UbuntuVersion 設定為版本號（例如: 24.04）→ 轉換為 Ubuntu-24.04（向下相容）
+    # - 兩者皆未設定 → 使用預設值 Ubuntu-24.04
+    if ($DistroName) {
+        $Script:DistroName = $DistroName
+    } elseif ($UbuntuVersion -match '^\d+\.\d+$') {
+        $Script:DistroName = "Ubuntu-$UbuntuVersion"
+    } else {
+        $Script:DistroName = "Ubuntu-24.04"
+    }
 
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "Linux 開發工具安裝程式" -ForegroundColor Cyan
@@ -214,7 +230,7 @@ function Main {
     Write-Log "啟動 Linux 工具安裝程式" "Success"
     Write-Log "日誌檔案: $Global:LogFile"
     if (Test-Path (Join-Path $PSScriptRoot ".env")) { Write-Log "已載入 .env 設定檔" }
-    Write-Log "目標 Distro: Ubuntu-$UbuntuVersion"
+    Write-Log "目標 Distro: $Script:DistroName"
     Write-Log "WSL 使用者: $WslUsername"
 
     try {
@@ -234,7 +250,7 @@ function Main {
         Write-Log "Linux 工具安裝完成！" "Success"
         Write-Log "========================================" "Success"
         Write-Log "後續步驟："
-        Write-Log "1. 重新登入 Ubuntu 後執行: newgrp docker（讓 docker 群組生效）"
+        Write-Log "1. 重新登入後執行: newgrp docker（讓 docker 群組生效）"
         Write-Log "2. 驗證 Docker: docker run hello-world"
         Write-Log "3. 驗證 .NET: dotnet --list-sdks"
         Write-Log "日誌檔案位置: $Global:LogFile"
