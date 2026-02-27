@@ -36,6 +36,8 @@ param(
     [string]$UbuntuVersion = "22.04",
     [string]$WslUsername = "yao",
     [string]$WslPassword = "123456",
+    [string]$Proxy = "",
+    [switch]$SkipVerify,
     [string]$LogPath = "$PSScriptRoot\logs"
 )
 
@@ -255,12 +257,30 @@ function Main {
         Write-Log "`n========================================" "Success"
         Write-Log "Ubuntu $UbuntuVersion 安裝完成！" "Success"
         Write-Log "========================================" "Success"
-        Write-Log "`n後續步驟："
-        Write-Log "1. 執行開發工具安裝腳本：.\install-linux-tools.ps1"
         Write-Log "`n使用者帳號資訊："
         Write-Log "  使用者名稱: $WslUsername"
         Write-Log "  密碼: $WslPassword"
         Write-Log "`n日誌檔案位置: $Global:LogFile"
+
+        # 安裝開發工具
+        Write-Log "`n========================================" "Info"
+        Write-Log "開始安裝開發工具..." "Info"
+        Write-Log "========================================" "Info"
+
+        $installToolsScript = Join-Path $PSScriptRoot "install-linux-tools.ps1"
+        if (Test-Path $installToolsScript) {
+            $installArgs = @{
+                UbuntuVersion = $UbuntuVersion
+                WslUsername   = $WslUsername
+                LogPath       = $LogPath
+            }
+            if ($Proxy)      { $installArgs["Proxy"]      = $Proxy }
+            if ($SkipVerify) { $installArgs["SkipVerify"] = $true  }
+
+            & $installToolsScript @installArgs
+        } else {
+            Write-Log "找不到 install-linux-tools.ps1，請手動執行：.\install-linux-tools.ps1" "Warning"
+        }
     }
     catch {
         Write-Log "`n========================================" "Error"
