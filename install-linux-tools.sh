@@ -126,6 +126,12 @@ show_progress() {
     local total=$2
     local message=$3
 
+    # 非終端機環境（如 PowerShell 管道）直接輸出純文字
+    if [[ ! -t 1 ]]; then
+        echo "[進度 ${current}/${total}] ${message}"
+        return
+    fi
+
     local percent=$((current * 100 / total))
     local bar_length=50
     local filled_length=$((bar_length * current / total))
@@ -460,8 +466,8 @@ main() {
     # 初始化
     init_log_dir
 
-    # 顯示標題
-    clear
+    # 顯示標題（非終端機環境不清除畫面）
+    [[ -t 1 ]] && clear
     print_header "WSL2 Ubuntu 開發環境安裝程式 v${SCRIPT_VERSION}"
 
     info "日誌檔案: ${LOG_FILE}"

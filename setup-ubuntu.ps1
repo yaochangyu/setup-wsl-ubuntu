@@ -99,14 +99,16 @@ function Install-Ubuntu {
 
     try {
         # 檢查是否已安裝目標版本
-        $existingTarget = wsl --list --quiet 2>&1 | Where-Object { $_ -match [regex]::Escape($ubuntuDistroName) }
+        $existingTarget = wsl --list --quiet 2>&1 |
+            Where-Object { $_ -match [regex]::Escape($ubuntuDistroName) }
         if ($existingTarget) {
             Write-Log "$ubuntuDistroName 已安裝，跳過安裝步驟" "Success"
             return $true
         }
 
         # 檢查是否有其他 Ubuntu 版本，僅記錄 log 不中斷
-        $existingDistros = wsl --list --quiet 2>&1 | Where-Object { $_ -match "Ubuntu" }
+        $existingDistros = wsl --list --quiet 2>&1 |
+            Where-Object { $_ -match "Ubuntu" }
         if ($existingDistros) {
             Write-Log "檢測到已安裝的其他 Ubuntu 發行版，繼續安裝 $ubuntuDistroName..." "Warning"
         }
@@ -229,9 +231,10 @@ function Main {
     Write-Host "Ubuntu $UbuntuVersion LTS 安裝程式" -ForegroundColor Cyan
     Write-Host "========================================`n" -ForegroundColor Cyan
 
-    # WSL 指令輸出為 UTF-16 LE，需要設定 OutputEncoding 才能正確解碼
-    # 否則 "Ubuntu-22.04" 會變成 "U b u n t u - 2 2 . 0 4"，導致所有字串比對失敗
-    [Console]::OutputEncoding = [System.Text.Encoding]::Unicode
+    $env:WSL_UTF8 = 1
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    # 隱藏 Write-Progress 視覺進度條，避免殘影（]）出現在日誌輸出中
+    $ProgressPreference = 'SilentlyContinue'
 
     Initialize-LogDirectory
     Write-Log "啟動 Ubuntu 安裝程式" "Success"
