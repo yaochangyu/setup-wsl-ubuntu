@@ -131,10 +131,19 @@ setup_base_tools() {
         "libtool"
 
         # 其他工具
-        "tree"
         "less"
         "man-db"
         "bash-completion"
+
+        # CLI 工具
+        "jq"           # JSON 處理
+        "bat"          # 更好的 cat
+        "ripgrep"      # 更快的 grep
+        "fzf"          # 模糊搜尋
+        "htop"         # 系統監控
+        "tmux"         # 終端多工
+        "tree"         # 目錄樹
+        "zsh"          # Shell
     )
 
     info "準備安裝 ${#base_packages[@]} 個基礎套件..."
@@ -345,6 +354,85 @@ EOF
     debug "配置檔案: ${vimrc}"
 }
 
+# 設定 Bash 使用者環境
+setup_bash_env() {
+    info "設定 Bash 使用者環境..."
+
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home
+    user_home=$(eval echo ~"${actual_user}")
+
+    # ~/.profile 設定（避免重複寫入）
+    if ! grep -q 'WINDOWS_USERNAME' "${user_home}/.profile" 2>/dev/null; then
+        info "設定 ~/.profile..."
+        sudo -u "${actual_user}" tee -a "${user_home}/.profile" > /dev/null <<'EOF'
+
+# WSL: 取得 Windows 使用者名稱
+export WINDOWS_USERNAME=$(powershell.exe '$env:UserName')
+
+# jq 暗色背景終端機色彩配置
+export JQ_COLORS="33:93:93:96:92:97:1;97:4;97"
+
+export EDITOR=vim
+export GPG_TTY=$(tty)
+EOF
+    fi
+
+    # ~/.bashrc 設定（避免重複寫入）
+    if ! grep -q 'no_empty_cmd_completion' "${user_home}/.bashrc" 2>/dev/null; then
+        info "設定 ~/.bashrc..."
+        sudo -u "${actual_user}" tee -a "${user_home}/.bashrc" > /dev/null <<'EOF'
+
+# Bash 補全設定
+shopt -u direxpand
+shopt -s no_empty_cmd_completion
+EOF
+    fi
+
+    # SSH 設定
+    info "設定 SSH..."
+    local ssh_dir="${user_home}/.ssh"
+    local ssh_key="${ssh_dir}/id_rsa"
+
+    sudo -u "${actual_user}" mkdir -p "${ssh_dir}"
+    chmod 700 "${ssh_dir}"
+    sudo -u "${actual_user}" touch "${ssh_dir}/authorized_keys"
+    chmod 600 "${ssh_dir}/authorized_keys"
+
+    if [[ ! -f "${ssh_key}" ]]; then
+        info "產生 SSH 金鑰 (RSA 4096)..."
+        sudo -u "${actual_user}" ssh-keygen -t rsa -b 4096 -f "${ssh_key}" -N "" >> "${LOG_FILE}" 2>&1
+        success "SSH 金鑰已產生: ${ssh_key}"
+        info "請將公鑰加入 GitHub: $(cat "${ssh_key}.pub")"
+    else
+        debug "SSH 金鑰已存在，跳過: ${ssh_key}"
+    fi
+
+    # 建立工作目錄
+    info "建立工作目錄 ~/projects..."
+    sudo -u "${actual_user}" mkdir -p "${user_home}/projects"
+
+    # Starship - 華麗的 Bash 提示符號
+    info "安裝 Starship 提示符號..."
+    curl -sS https://starship.rs/install.sh | sh -s -- -y >> "${LOG_FILE}" 2>&1 || warning "Starship 安裝失敗"
+
+    if command -v starship &> /dev/null; then
+        info "套用 Starship catppuccin-powerline 主題..."
+        sudo -u "${actual_user}" bash -c '
+            mkdir -p ~/.config
+            starship preset catppuccin-powerline -o ~/.config/starship.toml
+            sed -i '"'"'/^\[line_break\]/,/^\[/ s/disabled = true/disabled = false/'"'"' ~/.config/starship.toml
+        ' >> "${LOG_FILE}" 2>&1 || warning "Starship 主題套用失敗"
+
+        info "將 Starship 加入 ~/.bashrc..."
+        if ! grep -q 'starship init bash' "${user_home}/.bashrc" 2>/dev/null; then
+            echo 'eval "$(starship init bash)"' >> "${user_home}/.bashrc"
+        fi
+    fi
+
+    success "Bash 使用者環境設定完成"
+}
+
 # 清理 APT 快取
 cleanup_apt_cache() {
     info "清理 APT 快取..."
@@ -402,6 +490,79 @@ EOF
     success "系統優化設定完成"
 }
 
+# 安裝 better-rm（更安全的 rm 替代方案，刪除前移至垃圾桶）
+install_better_rm() {
+    info "安裝 better-rm..."
+
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home
+    user_home=$(eval echo ~"${actual_user}")
+
+    sudo -u "${actual_user}" bash -c \
+        'curl -sSL https://raw.githubusercontent.com/doggy8088/better-rm/main/install.sh | bash' \
+        >> "${LOG_FILE}" 2>&1 || warning "better-rm 安裝失敗"
+
+    # 驗證安裝（better-rm 會覆蓋 rm，版本資訊中會顯示 better-rm）
+    if sudo -u "${actual_user}" bash -c 'source ~/.bashrc && rm --version 2>&1' | grep -qi "better-rm" 2>/dev/null; then
+        success "better-rm 安裝完成"
+    else
+        warning "better-rm 驗證失敗，請重新登入後手動確認: rm --version"
+    fi
+}
+
+# 安裝 yq（YAML 處理，從 GitHub 下載）
+install_yq() {
+    info "安裝 yq..."
+    wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+    chmod +x /usr/local/bin/yq
+}
+
+# 設定 bat 符號連結（Ubuntu 套件名為 batcat）
+setup_bat_symlink() {
+    if [[ -f /usr/bin/batcat ]] && [[ ! -f /usr/local/bin/bat ]]; then
+        ln -s /usr/bin/batcat /usr/local/bin/bat
+    fi
+}
+
+# 安裝 oh-my-zsh
+install_oh_my_zsh() {
+    local actual_user="${SUDO_USER:-$USER}"
+
+    if [[ "${actual_user}" == "root" ]]; then
+        warning "以 root 執行，跳過 oh-my-zsh 安裝"
+        return 0
+    fi
+
+    info "安裝 oh-my-zsh..."
+    sudo -u "${actual_user}" bash -c \
+        'sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended' \
+        >> "${LOG_FILE}" 2>&1 || warning "oh-my-zsh 安裝失敗"
+}
+
+# 安裝常用 CLI 工具
+install_cli_tools() {
+    print_header "安裝常用 CLI 工具"
+
+    install_yq
+    setup_bat_symlink
+    install_oh_my_zsh
+    install_better_rm
+
+    # 驗證安裝
+    local tools=("yq" "starship")
+    info "已安裝的工具："
+    for tool in "${tools[@]}"; do
+        if command -v "${tool}" &> /dev/null; then
+            echo "  ✓ ${tool}" | tee -a "${LOG_FILE}"
+        else
+            echo "  ✗ ${tool}" | tee -a "${LOG_FILE}"
+        fi
+    done
+
+    success "常用 CLI 工具安裝完成"
+    INSTALL_STATUS["cli_tools"]="success"
+}
+
 # 主要基礎設定函式
 setup_base_system() {
     print_header "基礎系統設定"
@@ -431,6 +592,9 @@ setup_base_system() {
     # 設定 Vim
     setup_vim_basic
 
+    # 設定 Bash 使用者環境
+    setup_bash_env
+
     # 系統優化
     setup_system_optimization
 
@@ -449,7 +613,13 @@ export -f setup_timezone
 export -f setup_locale
 export -f setup_git_config
 export -f setup_vim_basic
+export -f setup_bash_env
 export -f cleanup_apt_cache
 export -f show_system_info
 export -f setup_system_optimization
 export -f setup_base_system
+export -f install_yq
+export -f setup_bat_symlink
+export -f install_oh_my_zsh
+export -f install_better_rm
+export -f install_cli_tools
