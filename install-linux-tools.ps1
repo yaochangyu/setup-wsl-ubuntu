@@ -191,7 +191,7 @@ function Register-DockerContext {
         [string]$Port = "2375"
     )
 
-    $endpoint = "tcp://localhost:$Port"
+    $endpoint = "tcp://127.0.0.1:$Port"
 
     # 檢查 docker CLI 是否存在
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
