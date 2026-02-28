@@ -152,7 +152,7 @@ setup_base_tools() {
         "jq"           # JSON 處理
         "bat"          # 更好的 cat
         "ripgrep"      # 更快的 grep
-        "fzf"          # 模糊搜尋
+        # fzf 改由 install_fzf() 從 GitHub 安裝，避免 apt 舊版衝突
         "htop"         # 系統監控
         "tmux"         # 終端多工
         "tree"         # 目錄樹
@@ -445,6 +445,14 @@ EOF
         fi
     fi
 
+    # fzf shell integration（使用 /usr/local/bin/fzf，支援 --bash）
+    if command -v fzf &> /dev/null; then
+        info "將 fzf shell integration 加入 ~/.bashrc..."
+        if ! grep -q 'fzf --bash' "${user_home}/.bashrc" 2>/dev/null; then
+            echo 'eval "$(fzf --bash)"' >> "${user_home}/.bashrc"
+        fi
+    fi
+
     success "Bash 使用者環境設定完成"
 }
 
@@ -525,6 +533,42 @@ install_better_rm() {
     fi
 }
 
+# 安裝 fzf（從 GitHub 下載最新版，避免 apt 舊版不支援 --bash 的問題）
+install_fzf() {
+    info "安裝 fzf..."
+
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home
+    user_home=$(eval echo ~"${actual_user}")
+    local arch
+    arch=$(uname -m)
+    local fzf_arch="amd64"
+    [[ "${arch}" == "aarch64" ]] && fzf_arch="arm64"
+
+    local latest_version
+    latest_version=$(curl -fsSL https://api.github.com/repos/junegunn/fzf/releases/latest \
+        | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+
+    if [[ -z "${latest_version}" ]]; then
+        warning "無法取得 fzf 最新版本，跳過安裝"
+        return 1
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tarball="${tmp_dir}/fzf.tar.gz"
+
+    wget -qO "${tarball}" \
+        "https://github.com/junegunn/fzf/releases/download/v${latest_version}/fzf-${latest_version}-linux_${fzf_arch}.tar.gz" \
+        >> "${LOG_FILE}" 2>&1
+
+    tar -xzf "${tarball}" -C /usr/local/bin/ fzf
+    chmod +x /usr/local/bin/fzf
+    rm -rf "${tmp_dir}"
+
+    success "fzf ${latest_version} 安裝完成"
+}
+
 # 安裝 yq（YAML 處理，從 GitHub 下載）
 install_yq() {
     info "安裝 yq..."
@@ -558,6 +602,7 @@ install_oh_my_zsh() {
 install_cli_tools() {
     print_header "安裝常用 CLI 工具"
 
+    install_fzf
     install_yq
     setup_bat_symlink
     install_oh_my_zsh
