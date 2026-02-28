@@ -165,7 +165,7 @@ function Invoke-LinuxToolsInstall {
     # 透過 sed 移除 \r 避免 Windows 換行符號造成 bash 錯誤
     # TERM=dumb 讓 bash 腳本不輸出 ANSI 色彩碼，避免 PowerShell 捕捉到亂碼
     $wslScriptDir = $wslScriptPath.Substring(0, $wslScriptPath.LastIndexOf('/'))
-    $bashCmd = "export SUDO_USER=$WslUsername TERM=$Script:BashTerm SCRIPT_DIR='$wslScriptDir'; sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
+    $bashCmd = "export SUDO_USER=$WslUsername TERM=$Script:BashTerm SCRIPT_DIR='$wslScriptDir' DOCKER_TCP_PORT=$Script:DockerPort; sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
     wsl -d $Script:DistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
         # 過濾掉殘留的 ANSI escape code 再寫入 log
         $line = [regex]::Replace("$_", '\x1b\[[0-9;]*[mKHJ]', '')
@@ -219,17 +219,53 @@ function Register-DockerContext {
         }
     }
 
-    # DOCKER_HOST 設定時會覆蓋 context，提示使用者
+    # DOCKER_HOST 會覆蓋 context，若有設定則自動清除
     $dockerHostEnv = [System.Environment]::GetEnvironmentVariable("DOCKER_HOST", "User")
     if ($dockerHostEnv) {
-        Write-Log "注意：DOCKER_HOST 環境變數已設定（$dockerHostEnv），會覆蓋 Docker context 設定" "Warning"
-        Write-Log "建議移除 DOCKER_HOST，改用 docker context 切換：" "Warning"
-        Write-Log "  [System.Environment]::SetEnvironmentVariable('DOCKER_HOST', `$null, 'User')" "Info"
+        [System.Environment]::SetEnvironmentVariable("DOCKER_HOST", $null, "User")
+        Remove-Item Env:DOCKER_HOST -ErrorAction SilentlyContinue
+        Write-Log "已移除 DOCKER_HOST 環境變數（原值：$dockerHostEnv），改由 Docker context 管理" "Success"
     }
 
     Write-Log "切換 Docker context 指令：" "Info"
     Write-Log "  docker context use $ContextName" "Info"
     Write-Log "  docker context ls  # 查看所有 context" "Info"
+}
+
+# ============================================
+# Docker Port 自動偵測
+# ============================================
+
+function Find-AvailableDockerPort {
+    param(
+        [int]$StartPort = 2375,
+        [int]$EndPort   = 2399
+    )
+
+    # 收集現有 Docker context 已占用的 port
+    $usedPorts = @()
+    if (Get-Command docker -ErrorAction SilentlyContinue) {
+        $endpoints = docker context ls --format "{{.DockerEndpoint}}" 2>&1
+        foreach ($ep in $endpoints) {
+            if ($ep -match 'tcp://[^:]+:(\d+)') {
+                $usedPorts += [int]$Matches[1]
+            }
+        }
+        if ($usedPorts.Count -gt 0) {
+            Write-Log "現有 Docker context 已占用的 port: $($usedPorts -join ', ')"
+        }
+    }
+
+    # 從 StartPort 往後找第一個未使用的 port
+    for ($port = $StartPort; $port -le $EndPort; $port++) {
+        if ($port -notin $usedPorts) {
+            Write-Log "自動選用 Docker TCP port: $port"
+            return "$port"
+        }
+    }
+
+    Write-Log "找不到可用的 Docker TCP port（$StartPort-$EndPort 皆已占用），使用預設 $StartPort" "Warning"
+    return "$StartPort"
 }
 
 # ============================================
@@ -266,14 +302,21 @@ function Main {
             exit 1
         }
 
+        # 決定 Docker TCP port：.env 明確指定優先，否則自動偵測可用 port
+        if ($dotenv['DOCKER_TCP_PORT']) {
+            $Script:DockerPort = $dotenv['DOCKER_TCP_PORT']
+            Write-Log "使用 .env 指定的 Docker TCP port: $Script:DockerPort"
+        } else {
+            $Script:DockerPort = Find-AvailableDockerPort
+        }
+
         if (-not (Invoke-LinuxToolsInstall)) {
             Write-Log "安裝未完全成功，請查看日誌" "Warning"
         }
 
         # 在 Windows 建立 Docker context，讓 Windows 端透過 context 切換存取各 WSL Docker Engine
-        $dockerPort = if ($dotenv['DOCKER_TCP_PORT']) { $dotenv['DOCKER_TCP_PORT'] } else { "2375" }
         $contextName = $Script:DistroName.ToLower()   # 例：Ubuntu-24.04 -> ubuntu-24.04
-        Register-DockerContext -ContextName $contextName -Port $dockerPort
+        Register-DockerContext -ContextName $contextName -Port $Script:DockerPort
 
         Write-Progress-Log -Activity "Linux 工具安裝" -Status "安裝完成" -PercentComplete 100
 
