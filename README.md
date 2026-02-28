@@ -1,11 +1,10 @@
 # WSL2 Linux 開發環境自動設置
 
-一鍵安裝 WSL2 + Linux 發行版完整開發環境，支援 Ubuntu、Debian、Kali Linux 等多種發行版，適用於 .NET、前端、全端、DevOps 等多種開發場景。
+一鍵安裝 WSL2 + Linux 發行版完整開發環境，支援 Ubuntu，適用於 .NET、前端、全端、DevOps 等多種開發場景。
 
 ## 功能特色
 
 ✅ **自動化安裝** - PowerShell 和 Bash 腳本全自動安裝
-✅ **發行版選單** - 互動式選單，支援所有 `wsl --list --online` 的發行版
 ✅ **模組化設計** - 每個工具獨立模組，易於維護
 ✅ **完整日誌** - 詳細的安裝日誌與錯誤追蹤
 ✅ **代理設定** - 支援企業環境代理配置
@@ -42,16 +41,16 @@ cd D:\lab\setup-wsl-ubuntu
 
 ```powershell
 cd D:\lab\setup-wsl-ubuntu
-.\setup-linux.ps1
+.\setup-ubuntu.ps1
 ```
 
-未指定發行版時會顯示互動式選單，列出所有可用的 WSL 發行版供選擇。預設安裝 Ubuntu 24.04，帳號為 `yao / changeme`。
+預設安裝 Ubuntu 24.04，帳號為 `yao / changeme`。
 
 如需直接指定：
 
 ```powershell
 # 指定發行版完整名稱（建議）
-.\setup-linux.ps1 -DistroName Ubuntu-24.04 -WslUsername myuser -WslPassword mypassword
+.\setup-ubuntu.ps1 -DistroName Ubuntu-24.04 -WslUsername myuser -WslPassword mypassword
 
 # 或透過 .env 檔案設定（詳見「環境設定檔」章節）
 ```
@@ -84,7 +83,7 @@ cp .env.example .env
 編輯 `.env`：
 
 ```ini
-# 指定發行版（可選，未設定則顯示互動選單）
+# 指定發行版（可選，未設定則預設安裝 Ubuntu 24.04）
 DISTRO_NAME=Ubuntu-24.04
 
 # WSL 使用者帳號
@@ -141,13 +140,11 @@ WSL_PASSWORD=your_password
 ### 選擇發行版
 
 ```powershell
-# 互動式選單（未指定時自動顯示）
-.\setup-linux.ps1
+# 預設安裝 Ubuntu 24.04
+.\setup-ubuntu.ps1
 
-# 直接指定發行版
-.\setup-linux.ps1 -DistroName Debian
-.\setup-linux.ps1 -DistroName kali-linux
-.\setup-linux.ps1 -DistroName Ubuntu-24.04
+# 直接指定版本
+.\setup-ubuntu.ps1 -DistroName Ubuntu-24.04
 ```
 
 ### 使用代理
@@ -164,12 +161,12 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 
 ## 命令列選項
 
-### setup-linux.ps1
+### setup-ubuntu.ps1
 
 ```
 參數:
-  -DistroName <名稱>      WSL 發行版完整名稱（預設: 互動選單）
-                          例: Ubuntu-24.04、Debian、kali-linux
+  -DistroName <名稱>      WSL 發行版完整名稱（預設: Ubuntu-24.04）
+                          例: Ubuntu-24.04
   -WslUsername <名稱>     WSL 使用者名稱（預設: yao）
   -WslPassword <密碼>     WSL 使用者密碼（預設: changeme）
   -Proxy <url>            設定代理伺服器
@@ -181,7 +178,7 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 ```
 參數:
   -DistroName <名稱>      WSL 發行版完整名稱（預設: Ubuntu-24.04）
-                          例: Ubuntu-24.04、Debian、kali-linux
+                          例: Ubuntu-24.04
   -WslUsername <名稱>     WSL 使用者名稱（預設: yao）
   -Proxy <url>            設定代理伺服器
   -SkipVerify             跳過安裝驗證
@@ -299,7 +296,7 @@ pip --version
 ```
 setup-wsl-ubuntu/
 ├── setup-wsl2-features.ps1     # 步驟 1：啟用 WSL2 Windows 功能（需管理員）
-├── setup-linux.ps1            # 步驟 2：安裝 Linux 發行版 + 建立使用者
+├── setup-ubuntu.ps1           # 步驟 2：安裝 Ubuntu + 建立使用者
 ├── install-linux-tools.ps1     # 步驟 3：從 Windows 呼叫開發工具安裝（PS1 包裝）
 ├── install-linux-tools.sh      # 步驟 3：在 Linux 內執行的開發工具安裝腳本
 ├── .env.example                # 環境設定範本（複製為 .env 後填入實際值）
@@ -328,7 +325,7 @@ A: 視網路速度而定，通常 15-30 分鐘。
 A: 可以，請修改 `install-linux-tools.sh` 中需要的模組。
 
 ### Q: 支援哪些 Linux 發行版？
-A: 支援所有 `wsl --list --online` 列出的發行版（Ubuntu、Debian、Kali Linux、openSUSE 等）。開發工具安裝腳本以 Ubuntu/Debian 系為主，其他發行版可能需要調整。
+A: 支援 Ubuntu（預設安裝 Ubuntu 24.04）。開發工具安裝腳本以 Ubuntu/Debian 系為主。
 
 ### Q: 如何更新已安裝的工具？
 A: 大部分工具可以使用各自的更新命令（如 `apt update`、`nvm install`）。

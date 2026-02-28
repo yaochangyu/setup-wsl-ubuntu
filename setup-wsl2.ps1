@@ -2,19 +2,19 @@
 
 <#
 .SYNOPSIS
-    WSL2 與 Linux 發行版一鍵安裝程式
+    WSL2 與 Ubuntu 一鍵安裝程式
 
 .DESCRIPTION
     此腳本會依序執行：
     1. setup-wsl2-features.ps1 - 啟用 Windows 功能（需要管理員）
-    2. setup-linux.ps1         - 安裝 Linux 發行版（不需要管理員）
+    2. setup-ubuntu.ps1        - 安裝 Ubuntu（不需要管理員）
 
     若只需要單獨執行某個步驟：
       - 啟用 Windows 功能：.\setup-wsl2-features.ps1
-      - 安裝 Linux 發行版：.\setup-linux.ps1
+      - 安裝 Ubuntu：.\setup-ubuntu.ps1
 
 .PARAMETER DistroName
-    WSL 發行版完整名稱（例如: Ubuntu-24.04、Debian），預設顯示互動選單
+    WSL 發行版完整名稱（例如: Ubuntu-24.04），預設安裝 Ubuntu-24.04
 
 .PARAMETER WslUsername
     WSL 使用者名稱，預設為 yao
@@ -44,11 +44,11 @@ param(
 )
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "WSL2 Linux 發行版一鍵安裝程式" -ForegroundColor Cyan
+Write-Host "WSL2 Ubuntu 一鍵安裝程式" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 $featuresScript = Join-Path $PSScriptRoot "setup-wsl2-features.ps1"
-$linuxScript    = Join-Path $PSScriptRoot "setup-linux.ps1"
+$linuxScript    = Join-Path $PSScriptRoot "setup-ubuntu.ps1"
 
 # 步驟 1：啟用 Windows 功能（需要管理員）
 Write-Host "`n[步驟 1/2] 啟用 WSL2 Windows 功能..." -ForegroundColor Cyan
@@ -59,8 +59,8 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# 步驟 2：安裝 Linux 發行版（不需要管理員，但此 wrapper 已在管理員模式下執行）
-Write-Host "`n[步驟 2/2] 安裝 Linux 發行版..." -ForegroundColor Cyan
+# 步驟 2：安裝 Ubuntu（不需要管理員，但此 wrapper 已在管理員模式下執行）
+Write-Host "`n[步驟 2/2] 安裝 Ubuntu..." -ForegroundColor Cyan
 
 $linuxArgs = @{
     WslUsername = $WslUsername

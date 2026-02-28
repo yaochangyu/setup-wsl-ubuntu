@@ -9,10 +9,7 @@
     3. 以 root 身分執行 install-linux-tools.sh
 
 .PARAMETER DistroName
-    WSL 發行版完整名稱（例如: Ubuntu-24.04、Debian），優先順序：參數 > .env DISTRO_NAME > UbuntuVersion 推導
-
-.PARAMETER UbuntuVersion
-    Ubuntu 版本號（例如: 24.04），向下相容用；若 DistroName 未設定則自動轉換為 Ubuntu-24.04
+    WSL 發行版完整名稱（例如: Ubuntu-24.04），優先順序：參數 > .env DISTRO_NAME > 預設 Ubuntu-24.04
 
 .PARAMETER WslUsername
     WSL 使用者名稱，用於設定工具的擁有者（例如加入 docker 群組），預設為 yao
@@ -33,23 +30,19 @@
     .\install-linux-tools.ps1 -DistroName Ubuntu-24.04
 
 .EXAMPLE
-    .\install-linux-tools.ps1 -UbuntuVersion 24.04
-
-.EXAMPLE
     .\install-linux-tools.ps1 -Proxy http://proxy.example.com:8080
 
 .EXAMPLE
     .\install-linux-tools.ps1 -SkipVerify
 
 .NOTES
-    執行前請確認已完成 setup-linux.ps1
+    執行前請確認已完成 setup-ubuntu.ps1
 #>
 
 [CmdletBinding()]
 param(
-    [string]$DistroName    = "",   # 優先順序：參數 > .env DISTRO_NAME > UbuntuVersion 推導
-    [string]$UbuntuVersion = "",   # 向下相容：24.04 → Ubuntu-24.04
-    [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
+    [string]$DistroName  = "",   # 優先順序：參數 > .env DISTRO_NAME > 預設 Ubuntu-24.04
+    [string]$WslUsername = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
     [string]$Proxy         = "",
     [switch]$SkipVerify,
     [string]$LogPath       = "$PSScriptRoot\logs"
@@ -123,39 +116,6 @@ function Write-Progress-Log {
 }
 
 # ============================================
-# 發行版選單（已安裝）
-# ============================================
-
-function Select-InstalledDistro {
-    Write-Host "取得已安裝的 WSL 發行版..." -ForegroundColor Cyan
-
-    $rawList = wsl --list --quiet 2>&1
-    $distros = $rawList |
-        Where-Object { $_.Trim() -ne "" } |
-        ForEach-Object { $_.Trim() }
-
-    if (-not $distros) {
-        Write-Host "找不到已安裝的 WSL 發行版，請先執行 setup-linux.ps1" -ForegroundColor Red
-        exit 1
-    }
-
-    Write-Host ""
-    Write-Host "請選擇要安裝開發工具的 WSL 發行版：" -ForegroundColor Cyan
-    Write-Host ""
-    for ($i = 0; $i -lt $distros.Count; $i++) {
-        Write-Host "  $($i + 1)) $($distros[$i])" -ForegroundColor White
-    }
-    Write-Host ""
-
-    do {
-        $choice = Read-Host "請輸入選項 [1-$($distros.Count)]"
-        $idx    = [int]$choice - 1
-    } while ($choice -notmatch '^\d+$' -or $idx -lt 0 -or $idx -ge $distros.Count)
-
-    return $distros[$idx]
-}
-
-# ============================================
 # 前置檢查
 # ============================================
 
@@ -166,7 +126,7 @@ function Test-DistroReady {
     $found   = $distros | Where-Object { $_ -match [regex]::Escape($Script:DistroName) }
 
     if (-not $found) {
-        Write-Log "$Script:DistroName 尚未安裝，請先執行 setup-linux.ps1" "Error"
+        Write-Log "$Script:DistroName 尚未安裝，請先執行 setup-ubuntu.ps1" "Error"
         return $false
     }
 
@@ -211,7 +171,8 @@ function Invoke-LinuxToolsInstall {
     # （VAR=value cmd 前綴只作用於緊接的命令，不繼承至 pipe 後段）
     # 透過 sed 移除 \r 避免 Windows 換行符號造成 bash 錯誤
     # TERM=dumb 讓 bash 腳本不輸出 ANSI 色彩碼，避免 PowerShell 捕捉到亂碼
-    $bashCmd = "export SUDO_USER=$WslUsername TERM=$Script:BashTerm; sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
+    $wslScriptDir = $wslScriptPath.Substring(0, $wslScriptPath.LastIndexOf('/'))
+    $bashCmd = "export SUDO_USER=$WslUsername TERM=$Script:BashTerm SCRIPT_DIR='$wslScriptDir'; sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
     wsl -d $Script:DistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
         # 過濾掉殘留的 ANSI escape code 再寫入 log
         $line = [regex]::Replace("$_", '\x1b\[[0-9;]*[mKHJ]', '')
@@ -238,29 +199,22 @@ function Main {
 
     # 從 .env 載入設定，參數 > .env > 後備預設值
     $dotenv = Read-DotEnv
-    if (-not $DistroName)    { $DistroName    = $dotenv['DISTRO_NAME']    }
-    if (-not $UbuntuVersion) { $UbuntuVersion = $dotenv['UBUNTU_VERSION'] }
-    if (-not $WslUsername)   { $WslUsername   = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao' } }
+    if (-not $DistroName)  { $DistroName  = $dotenv['DISTRO_NAME']  }
+    if (-not $WslUsername) { $WslUsername = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao' } }
 
-    # 正規化發行版名稱（優先順序：參數 > .env DISTRO_NAME > .env UBUNTU_VERSION > 互動選單）：
-    # - $DistroName 已設定（例如: Ubuntu-24.04、Debian）→ 直接使用，跳過選單
-    # - $UbuntuVersion 設定為版本號（例如: 24.04）→ 轉換為 Ubuntu-24.04，跳過選單（向下相容）
-    # - 兩者皆未設定 → 顯示已安裝的發行版選單
+    # 優先順序：參數 > .env DISTRO_NAME > 預設 Ubuntu-24.04
     if ($DistroName) {
         $Script:DistroName = $DistroName
-    } elseif ($UbuntuVersion -match '^\d+\.\d+$') {
-        $Script:DistroName = "Ubuntu-$UbuntuVersion"
     } else {
-        $Script:DistroName = Select-InstalledDistro
-        Write-Host ""
+        $Script:DistroName = "Ubuntu-24.04"
     }
 
     Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "Linux 開發工具安裝程式" -ForegroundColor Cyan
+    Write-Host "Ubuntu 開發工具安裝程式" -ForegroundColor Cyan
     Write-Host "========================================`n" -ForegroundColor Cyan
 
     Initialize-LogDirectory
-    Write-Log "啟動 Linux 工具安裝程式" "Success"
+    Write-Log "啟動 Ubuntu 工具安裝程式" "Success"
     Write-Log "日誌檔案: $Global:LogFile"
     if (Test-Path (Join-Path $PSScriptRoot ".env")) { Write-Log "已載入 .env 設定檔" }
     Write-Log "目標 Distro: $Script:DistroName"

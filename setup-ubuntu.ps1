@@ -1,19 +1,15 @@
 <#
 .SYNOPSIS
-    安裝並設定 WSL Linux 發行版（不需要管理員權限）
+    安裝並設定 WSL Ubuntu（不需要管理員權限）
 
 .DESCRIPTION
     此腳本會執行以下操作：
-    1. 顯示可用的 WSL 發行版選單
-    2. 安裝指定的發行版
-    3. 建立預設使用者
-    4. 驗證安裝結果
+    1. 安裝指定的 Ubuntu 發行版
+    2. 建立預設使用者
+    3. 驗證安裝結果
 
 .PARAMETER DistroName
-    WSL 發行版完整名稱（例如: Ubuntu-24.04、Debian），優先順序：參數 > .env DISTRO_NAME > 互動選單
-
-.PARAMETER UbuntuVersion
-    Ubuntu 版本號（例如: 24.04），會自動轉換為 Ubuntu-24.04，供向下相容使用
+    WSL 發行版完整名稱（例如: Ubuntu-24.04），優先順序：參數 > 預設 Ubuntu-24.04
 
 .PARAMETER WslUsername
     WSL 使用者名稱，預設為 yao
@@ -25,13 +21,10 @@
     日誌檔案路徑，預設為腳本目錄下的 logs 資料夾
 
 .EXAMPLE
-    .\setup-linux.ps1
+    .\setup-ubuntu.ps1
 
 .EXAMPLE
-    .\setup-linux.ps1 -DistroName Ubuntu-24.04 -WslUsername myuser
-
-.EXAMPLE
-    .\setup-linux.ps1 -UbuntuVersion 24.04
+    .\setup-ubuntu.ps1 -DistroName Ubuntu-24.04 -WslUsername myuser
 
 .NOTES
     執行前請確認已完成 setup-wsl2-features.ps1（需要管理員）
@@ -40,8 +33,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$DistroName    = "",   # 優先順序：參數 > .env DISTRO_NAME > 互動選單
-    [string]$UbuntuVersion = "",   # 向下相容：24.04 → Ubuntu-24.04
+    [string]$DistroName    = "",   # 優先順序：參數 > .env DISTRO_NAME > 預設 Ubuntu-24.04
     [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
     [string]$WslPassword   = "",   # 優先順序：參數 > .env WSL_PASSWORD > "changeme"
     [string]$Proxy         = "",
@@ -112,64 +104,6 @@ function Write-Progress-Log {
 
     Write-Progress -Activity $Activity -Status $Status -PercentComplete $PercentComplete
     Write-Log "$Activity - $Status ($PercentComplete%)"
-}
-
-# ============================================
-# 發行版選單
-# ============================================
-
-function Select-WslDistro {
-    Write-Host "取得可用的 WSL 發行版..." -ForegroundColor Cyan
-
-    $allLines    = wsl --list --online 2>&1
-    $headerFound = $false
-    $distros     = @()
-
-    foreach ($line in $allLines) {
-        # 找到標題列（NAME ... FRIENDLY NAME）後開始解析
-        if ($line -match '^NAME\s+FRIENDLY') {
-            $headerFound = $true
-            continue
-        }
-        if ($headerFound -and $line.Trim() -ne '') {
-            # 名稱與顯示名稱之間至少有兩個空白
-            if ($line -match '^(\S+)\s{2,}(.+)$') {
-                $distros += [PSCustomObject]@{
-                    Name         = $Matches[1].Trim()
-                    FriendlyName = $Matches[2].Trim()
-                }
-            }
-        }
-    }
-
-    # 只保留 Ubuntu 系列
-    $distros = $distros | Where-Object { $_.Name -match '^Ubuntu' }
-
-    # 無法取得線上清單時使用後備清單
-    if (-not $distros) {
-        Write-Host "（無法取得線上清單，使用內建清單）" -ForegroundColor Yellow
-        $distros = @(
-            [PSCustomObject]@{ Name = "Ubuntu-24.04"; FriendlyName = "Ubuntu 24.04 LTS" },
-            [PSCustomObject]@{ Name = "Ubuntu-22.04"; FriendlyName = "Ubuntu 22.04 LTS" },
-            [PSCustomObject]@{ Name = "Ubuntu-20.04"; FriendlyName = "Ubuntu 20.04 LTS" }
-        )
-    }
-
-    Write-Host ""
-    Write-Host "請選擇要安裝的 WSL 發行版：" -ForegroundColor Cyan
-    Write-Host ""
-    for ($i = 0; $i -lt $distros.Count; $i++) {
-        $d = $distros[$i]
-        Write-Host "  $($i + 1)) $($d.FriendlyName)  [$($d.Name)]" -ForegroundColor White
-    }
-    Write-Host ""
-
-    do {
-        $choice = Read-Host "請輸入選項 [1-$($distros.Count)]"
-        $idx    = [int]$choice - 1
-    } while ($choice -notmatch '^\d+$' -or $idx -lt 0 -or $idx -ge $distros.Count)
-
-    return $distros[$idx].Name
 }
 
 # ============================================
@@ -305,31 +239,22 @@ function Main {
     # 隱藏 Write-Progress 視覺進度條，避免殘影（]）出現在日誌輸出中
     $ProgressPreference = 'SilentlyContinue'
 
-    # 從 .env 載入設定，優先順序：參數 > .env > 選單/後備預設值
+    # 從 .env 載入設定，優先順序：參數 > .env > 後備預設值
     $dotenv = Read-DotEnv
     if (-not $DistroName)  { $DistroName  = $dotenv['DISTRO_NAME'] }
     if (-not $WslUsername) { $WslUsername = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao'      } }
     if (-not $WslPassword) { $WslPassword = if ($dotenv['WSL_PASSWORD']) { $dotenv['WSL_PASSWORD'] } else { 'changeme' } }
 
-    # 正規化發行版名稱（.env UBUNTU_VERSION 不在此處套用，僅供 install-linux-tools.ps1 獨立執行使用）：
-    # - $DistroName 已設定（來自參數或 .env DISTRO_NAME）→ 直接使用，跳過選單
-    # - $UbuntuVersion 以命令列參數傳入（例如: 24.04）→ 轉換為 Ubuntu-24.04，跳過選單（向下相容）
-    # - 兩者皆未設定 → 顯示互動選單
+    # 優先順序：參數 > .env DISTRO_NAME > 預設 Ubuntu-24.04
     if ($DistroName) {
         $Script:DistroName = $DistroName
-    } elseif ($UbuntuVersion -match '^\d+\.\d+$') {
-        $Script:DistroName = "Ubuntu-$UbuntuVersion"
+    } else {
+        $Script:DistroName = "Ubuntu-24.04"
     }
 
     Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "WSL Linux 發行版安裝程式" -ForegroundColor Cyan
+    Write-Host "WSL Ubuntu 安裝程式" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
-
-    # 發行版未指定時顯示互動選單
-    if (-not $Script:DistroName) {
-        $Script:DistroName = Select-WslDistro
-        Write-Host ""
-    }
 
     Initialize-LogDirectory
     Write-Log "啟動 WSL 安裝程式" "Success"

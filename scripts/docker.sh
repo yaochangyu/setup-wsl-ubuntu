@@ -29,6 +29,13 @@
 remove_old_docker() {
     info "檢查並移除舊版本 Docker..."
 
+    # 清除舊的 apt 來源（防止錯誤設定導致 apt-get update 失敗）
+    local repo_file="/etc/apt/sources.list.d/docker.list"
+    if [[ -f "${repo_file}" ]]; then
+        rm -f "${repo_file}"
+        info "已清除舊的 Docker apt 來源"
+    fi
+
     local old_packages=(
         "docker"
         "docker-engine"

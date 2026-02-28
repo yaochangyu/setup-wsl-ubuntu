@@ -30,7 +30,8 @@ set -e  # 遇到錯誤立即退出
 ###############################################################################
 
 # 腳本資訊
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 優先使用外部傳入的 SCRIPT_DIR（bash -s 管道執行時 BASH_SOURCE[0] 為空）
+SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_VERSION="1.0.0"
 
@@ -208,11 +209,11 @@ check_os() {
     # 檢查是否為 Ubuntu
     if [[ "${ID}" != "ubuntu" ]]; then
         warning "此腳本主要針對 Ubuntu 設計，在其他發行版上可能無法正常運作"
-        read -p "是否要繼續？ (y/N) " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            info "使用者取消安裝"
-            exit 0
+            read -p "是否要繼續？ (y/N) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                info "使用者取消安裝"
+                exit 0
         fi
     fi
 
@@ -301,9 +302,38 @@ repair_dpkg() {
 update_system() {
     info "更新系統套件列表..."
 
-    apt-get update -qq >> "${LOG_FILE}" 2>&1
+    local tmpout
+    tmpout=$(mktemp)
+    if ! apt-get update -qq > "$tmpout" 2>&1; then
+        cat "$tmpout" >> "${LOG_FILE}"
+        # 顯示錯誤行，但若只有第三方來源失敗則繼續（不中止）
+        local errors
+        errors=$(grep -E "^E:" "$tmpout" || true)
+        if [[ -n "$errors" ]]; then
+            warning "apt-get update 部分失敗，請確認以下來源設定："
+            echo "$errors"
+            rm -f "$tmpout"
+            return 1
+        fi
+    fi
+    cat "$tmpout" >> "${LOG_FILE}"
+    rm -f "$tmpout"
 
     success "系統套件列表已更新"
+}
+
+# apt-get install 包裝：輸出寫入日誌，失敗時將錯誤行印到 stdout
+apt_install() {
+    local tmpout
+    tmpout=$(mktemp)
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "$@" > "$tmpout" 2>&1
+    local rc=$?
+    cat "$tmpout" >> "${LOG_FILE}"
+    if [[ $rc -ne 0 ]]; then
+        grep -E "^E:|^W:|[Ee]rror|[Ff]ailed" "$tmpout" || tail -5 "$tmpout"
+    fi
+    rm -f "$tmpout"
+    return $rc
 }
 
 # 安裝基礎套件
@@ -325,7 +355,7 @@ install_base_packages() {
         "apt-transport-https"
     )
 
-    apt-get install -y "${packages[@]}" >> "${LOG_FILE}" 2>&1
+    apt_install "${packages[@]}"
 
     success "基礎套件安裝完成"
 }
