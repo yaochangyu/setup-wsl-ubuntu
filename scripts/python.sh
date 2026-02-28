@@ -5,8 +5,9 @@
 ###############################################################################
 
 ###############################################################################
-# 環境變數
+# 環境變數（未設定時使用預設值；可由外部環境或 config.sh 覆蓋）
 ###############################################################################
+: "${PYTHON_VERSION:=3.12}"   # pyenv 安裝的 Python 版本
 # 由執行環境提供（唯讀）：
 # SUDO_USER - 實際非 root 使用者（由 install-linux-tools.ps1 export 設定）
 
@@ -62,11 +63,11 @@ EOF
         success "環境變數已設定"
     fi
 
-    # 安裝最新 Python 版本
-    info "安裝 Python 3.12..."
-    sudo -u "${actual_user}" bash -c "export PYENV_ROOT='${user_home}/.pyenv' && export PATH='\$PYENV_ROOT/bin:\$PATH' && eval '\$(pyenv init -)' && pyenv install 3.12 -s" >> "${LOG_FILE}" 2>&1 || warning "Python 3.12 安裝失敗"
+    # 安裝指定 Python 版本
+    info "安裝 Python ${PYTHON_VERSION}..."
+    sudo -u "${actual_user}" bash -c "export PYENV_ROOT='${user_home}/.pyenv' && export PATH='\$PYENV_ROOT/bin:\$PATH' && eval '\$(pyenv init -)' && pyenv install ${PYTHON_VERSION} -s" >> "${LOG_FILE}" 2>&1 || warning "Python ${PYTHON_VERSION} 安裝失敗"
 
-    sudo -u "${actual_user}" bash -c "export PYENV_ROOT='${user_home}/.pyenv' && export PATH='\$PYENV_ROOT/bin:\$PATH' && eval '\$(pyenv init -)' && pyenv global 3.12" >> "${LOG_FILE}" 2>&1 || warning "Python 設定失敗"
+    sudo -u "${actual_user}" bash -c "export PYENV_ROOT='${user_home}/.pyenv' && export PATH='\$PYENV_ROOT/bin:\$PATH' && eval '\$(pyenv init -)' && pyenv global ${PYTHON_VERSION}" >> "${LOG_FILE}" 2>&1 || warning "Python 設定失敗"
 
     success "Python 與 pyenv 安裝完成"
     INSTALL_STATUS["python"]="success"

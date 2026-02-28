@@ -5,8 +5,9 @@
 ###############################################################################
 
 ###############################################################################
-# 環境變數
+# 環境變數（未設定時使用預設值；可由外部環境或 config.sh 覆蓋）
 ###############################################################################
+: "${NVM_VERSION:=v0.39.7}"   # nvm 版本
 # 由執行環境提供（唯讀）：
 # SUDO_USER - 實際非 root 使用者（由 install-linux-tools.ps1 export 設定）
 
@@ -24,7 +25,7 @@ install_nodejs() {
     info "下載並安裝 nvm..."
 
     # 安裝 nvm
-    sudo -u "${actual_user}" bash -c 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash' >> "${LOG_FILE}" 2>&1
+    sudo -u "${actual_user}" bash -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | bash" >> "${LOG_FILE}" 2>&1
 
     if [[ ! -d "${user_home}/.nvm" ]]; then
         error "nvm 安裝失敗"

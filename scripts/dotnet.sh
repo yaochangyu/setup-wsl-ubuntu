@@ -15,15 +15,20 @@
 #   10.0 - LTS，EOL 2028-11（2025-11 正式發布）
 ###############################################################################
 
+###############################################################################
+# 環境變數（未設定時使用預設值；可由外部環境或 config.sh 覆蓋）
+###############################################################################
+: "${DOTNET_VERSIONS:=5.0 6.0 7.0 8.0 9.0 10.0}"   # 安裝的 .NET SDK 版本（空白分隔）
+: "${DOTNET_INSTALL_DIR:=/usr/share/dotnet}"          # .NET SDK 安裝目錄
+
 install_dotnet() {
     print_header "安裝 .NET SDK"
 
     # -------------------------------------------------------------------------
-    # 所有版本統一用 dotnet-install.sh 安裝到 /usr/share/dotnet
+    # 所有版本統一用 dotnet-install.sh 安裝到 DOTNET_INSTALL_DIR
     # 避免 apt 的 dotnet-host-X.Y vs dotnet-host 衝突問題
     # -------------------------------------------------------------------------
-    local dotnet_install_dir="/usr/share/dotnet"
-    local all_versions=("5.0" "6.0" "7.0" "8.0" "9.0" "10.0")
+    read -ra all_versions <<< "${DOTNET_VERSIONS}"
     local installed_count=0
 
     info "下載 dotnet-install.sh..."
@@ -34,7 +39,7 @@ install_dotnet() {
         info "安裝 .NET ${version} SDK (dotnet-install.sh)..."
         if bash <(echo "$dotnet_install_script") \
             --channel "${version}" \
-            --install-dir "${dotnet_install_dir}" \
+            --install-dir "${DOTNET_INSTALL_DIR}" \
             --no-path >> "${LOG_FILE}" 2>&1; then
             success ".NET ${version} SDK 安裝成功"
             ((installed_count++)) || true
@@ -44,8 +49,8 @@ install_dotnet() {
     done
 
     # 確保 dotnet 指令在 PATH 中
-    if [[ ! -f /usr/local/bin/dotnet ]] && [[ -f "${dotnet_install_dir}/dotnet" ]]; then
-        ln -sf "${dotnet_install_dir}/dotnet" /usr/local/bin/dotnet
+    if [[ ! -f /usr/local/bin/dotnet ]] && [[ -f "${DOTNET_INSTALL_DIR}/dotnet" ]]; then
+        ln -sf "${DOTNET_INSTALL_DIR}/dotnet" /usr/local/bin/dotnet
     fi
 
     # -------------------------------------------------------------------------
