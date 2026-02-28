@@ -249,7 +249,7 @@ function Set-WSL2AsDefault {
 function Main {
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "WSL2 Windows 功能啟用程式（需要管理員）" -ForegroundColor Cyan
-    Write-Host "========================================`n" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
 
     Initialize-LogDirectory
     Write-Log "啟動 WSL2 功能啟用程式" "Success"
@@ -283,20 +283,20 @@ function Main {
 
         Write-Progress-Log -Activity "WSL2 功能啟用" -Status "完成" -PercentComplete 100
 
-        Write-Log "`n========================================" "Success"
+        Write-Log "========================================" "Success"
         Write-Log "WSL2 Windows 功能啟用完成！" "Success"
         Write-Log "========================================" "Success"
-        Write-Log "`n後續步驟："
+        Write-Log "後續步驟："
         Write-Log "1. 可能需要重新啟動電腦以完成功能啟用"
         Write-Log "2. 重新啟動後，執行 setup-ubuntu.ps1 安裝 Ubuntu（不需管理員）"
-        Write-Log "`n日誌檔案位置: $Global:LogFile"
+        Write-Log "日誌檔案位置: $Global:LogFile"
     }
     catch {
-        Write-Log "`n========================================" "Error"
+        Write-Log "========================================" "Error"
         Write-Log "功能啟用過程發生錯誤" "Error"
         Write-Log "錯誤訊息: $($_.Exception.Message)" "Error"
         Write-Log "========================================" "Error"
-        Write-Log "`n請檢查日誌檔案: $Global:LogFile" "Error"
+        Write-Log "請檢查日誌檔案: $Global:LogFile" "Error"
         exit 1
     }
     finally {
