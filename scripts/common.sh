@@ -380,8 +380,10 @@ setup_bash_env() {
         info "設定 ~/.profile..."
         sudo -u "${actual_user}" tee -a "${user_home}/.profile" > /dev/null <<'EOF'
 
-# WSL: 取得 Windows 使用者名稱
-export WINDOWS_USERNAME=$(powershell.exe '$env:UserName')
+# WSL: 取得 Windows 使用者名稱（僅在 Windows interop 啟用時）
+if [[ -e /proc/sys/fs/binfmt_misc/WSLInterop ]]; then
+    export WINDOWS_USERNAME=$(powershell.exe -NoProfile -NonInteractive -Command '$env:UserName' 2>/dev/null | tr -d '\r\n')
+fi
 
 # jq 暗色背景終端機色彩配置
 export JQ_COLORS="33:93:93:96:92:97:1;97:4;97"
@@ -617,6 +619,35 @@ setup_base_system() {
     success "基礎系統設定完成"
     INSTALL_STATUS["base_system"]="success"
 }
+
+# 允許單獨執行（source 時跳過）
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    # 補充日誌與輸出函式（未由主腳本 source 時的後備定義）
+    if ! declare -f info > /dev/null 2>&1; then
+        COLOR_RESET="\033[0m"
+        COLOR_GREEN="\033[32m"; COLOR_CYAN="\033[36m"
+        COLOR_YELLOW="\033[33m"; COLOR_RED="\033[31m"
+        COLOR_BLUE="\033[34m";  COLOR_BOLD="\033[1m"
+
+        LOG_FILE="${LOG_FILE:-/tmp/common-$(date +%Y%m%d-%H%M%S).log}"
+
+        log()             { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$1] ${*:2}" >> "${LOG_FILE}"; }
+        print_log()       { local lvl=$1 clr=$2; shift 2; echo -e "${clr}[${lvl}]${COLOR_RESET} $*"; log "${lvl}" "$*"; }
+        info()            { print_log "INFO"    "${COLOR_CYAN}"   "$@"; }
+        success()         { print_log "SUCCESS" "${COLOR_GREEN}"  "$@"; }
+        warning()         { print_log "WARNING" "${COLOR_YELLOW}" "$@"; }
+        error()           { print_log "ERROR"   "${COLOR_RED}"    "$@"; }
+        debug()           { [[ "${DEBUG:-false}" == "true" ]] && print_log "DEBUG" "${COLOR_BLUE}" "$@" || true; }
+        print_header()    { echo -e "\n${COLOR_BOLD}${COLOR_CYAN}========================================${COLOR_RESET}\n${COLOR_BOLD}${COLOR_CYAN}$1${COLOR_RESET}\n${COLOR_BOLD}${COLOR_CYAN}========================================${COLOR_RESET}\n"; }
+        print_separator() { echo -e "${COLOR_BLUE}----------------------------------------${COLOR_RESET}"; }
+    fi
+
+    declare -A INSTALL_STATUS 2>/dev/null || true
+
+    setup_base_system "$@"
+    install_cli_tools
+    exit $?
+fi
 
 # 匯出函式供主腳本使用
 export -f setup_system_update
