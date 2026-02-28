@@ -9,7 +9,7 @@
     3. 以 root 身分執行 install-linux-tools.sh
 
 .PARAMETER DistroName
-    WSL 發行版完整名稱（例如: Ubuntu-24.04），優先順序：參數 > .env DISTRO_NAME > 預設 Ubuntu-24.04
+    WSL 發行版完整名稱（例如: Ubuntu-24.04），優先順序：參數 > 預設 Ubuntu-24.04
 
 .PARAMETER WslUsername
     WSL 使用者名稱，用於設定工具的擁有者（例如加入 docker 群組），預設為 yao
@@ -41,7 +41,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$DistroName  = "",   # 優先順序：參數 > .env DISTRO_NAME > 預設 Ubuntu-24.04
+    [string]$DistroName  = "",   # 優先順序：參數 > 預設 Ubuntu-24.04
     [string]$WslUsername = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
     [string]$Proxy         = "",
     [switch]$SkipVerify,
@@ -189,6 +189,27 @@ function Invoke-LinuxToolsInstall {
 }
 
 # ============================================
+# Windows 環境設定
+# ============================================
+
+function Set-DockerHostEnv {
+    param([string]$Port = "2375")
+
+    $value = "tcp://localhost:$Port"
+    $current = [System.Environment]::GetEnvironmentVariable("DOCKER_HOST", "User")
+
+    if ($current -eq $value) {
+        Write-Log "DOCKER_HOST 已設定為 $value，跳過" "Info"
+        return
+    }
+
+    [System.Environment]::SetEnvironmentVariable("DOCKER_HOST", $value, "User")
+    $env:DOCKER_HOST = $value
+    Write-Log "已設定 Windows 使用者環境變數 DOCKER_HOST=$value" "Success"
+    Write-Log "開啟新的終端機後即可在 Windows 直接使用 WSL Docker Engine" "Info"
+}
+
+# ============================================
 # 主要執行流程
 # ============================================
 
@@ -199,15 +220,9 @@ function Main {
 
     # 從 .env 載入設定，參數 > .env > 後備預設值
     $dotenv = Read-DotEnv
-    if (-not $DistroName)  { $DistroName  = $dotenv['DISTRO_NAME']  }
     if (-not $WslUsername) { $WslUsername = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao' } }
 
-    # 優先順序：參數 > .env DISTRO_NAME > 預設 Ubuntu-24.04
-    if ($DistroName) {
-        $Script:DistroName = $DistroName
-    } else {
-        $Script:DistroName = "Ubuntu-24.04"
-    }
+    $Script:DistroName = if ($DistroName) { $DistroName } else { "Ubuntu-24.04" }
 
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "Ubuntu 開發工具安裝程式" -ForegroundColor Cyan
@@ -231,6 +246,10 @@ function Main {
             Write-Log "安裝未完全成功，請查看日誌" "Warning"
         }
 
+        # 設定 Windows 端 DOCKER_HOST，讓 Windows 直接存取 WSL Docker Engine
+        $dockerPort = if ($dotenv['DOCKER_TCP_PORT']) { $dotenv['DOCKER_TCP_PORT'] } else { "2375" }
+        Set-DockerHostEnv -Port $dockerPort
+
         Write-Progress-Log -Activity "Linux 工具安裝" -Status "安裝完成" -PercentComplete 100
 
         Write-Log "========================================" "Success"
@@ -240,6 +259,7 @@ function Main {
         Write-Log "1. 重新登入後執行: newgrp docker（讓 docker 群組生效）"
         Write-Log "2. 驗證 Docker: docker run hello-world"
         Write-Log "3. 驗證 .NET: dotnet --list-sdks"
+        Write-Log "4. Windows 已可直接使用 WSL Docker（DOCKER_HOST 已設定）"
         Write-Log "日誌檔案位置: $Global:LogFile"
     }
     catch {

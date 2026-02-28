@@ -22,6 +22,8 @@
 : "${DOCKER_REGISTRY_MIRRORS:=}"       # 鏡像加速站 URL（逗號分隔，選填）
 : "${PROXY_URL:=}"                     # 代理伺服器 URL（選填）
 : "${NO_PROXY:=}"                      # 不使用代理的主機清單（選填）
+: "${DOCKER_WINDOWS_HOST:=true}"       # 允許 Windows 透過 TCP 存取 WSL Docker (true/false)
+: "${DOCKER_TCP_PORT:=2375}"           # Docker TCP 監聽埠（供 Windows 端 DOCKER_HOST 使用）
 # 由執行環境提供（唯讀）：
 # SUDO_USER - 實際非 root 使用者（由 install-linux-tools.ps1 export 設定）
 
@@ -276,6 +278,13 @@ configure_docker_daemon() {
   },
   "storage-driver": "overlay2"'
 
+    # WSL 環境：開放 TCP port 供 Windows 端存取 Docker Engine
+    if grep -qi microsoft /proc/version && [[ "${DOCKER_WINDOWS_HOST}" == "true" ]]; then
+        config_content+=',
+  "hosts": ["unix:///var/run/docker.sock", "tcp://127.0.0.1:'"${DOCKER_TCP_PORT}"'"]'
+        info "已設定 Docker TCP host: 127.0.0.1:${DOCKER_TCP_PORT}（供 Windows 端使用）"
+    fi
+
     # 新增鏡像加速（如果設定）
     if [[ -n "${DOCKER_REGISTRY_MIRRORS:-}" ]]; then
         config_content+=',
@@ -337,6 +346,36 @@ configure_docker_daemon() {
         error "Docker daemon 配置失敗"
         return 1
     fi
+}
+
+# 建立 systemd override，移除 -H fd:// 避免與 daemon.json hosts 衝突
+setup_docker_systemd_override() {
+    # 只在 WSL + systemd + TCP host 啟用時才需要處理
+    if ! grep -qi microsoft /proc/version; then
+        return 0
+    fi
+    if [[ "${DOCKER_WINDOWS_HOST}" != "true" ]]; then
+        return 0
+    fi
+    if ! command -v systemctl &> /dev/null || ! systemctl is-system-running &> /dev/null 2>&1; then
+        debug "systemd 不可用，跳過 override 設定"
+        return 0
+    fi
+
+    info "建立 Docker systemd override（移除 -H fd:// 與 daemon.json hosts 的衝突）..."
+
+    local override_dir="/etc/systemd/system/docker.service.d"
+    local override_file="${override_dir}/override.conf"
+
+    mkdir -p "${override_dir}"
+    cat > "${override_file}" <<'EOF'
+[Service]
+ExecStart=
+ExecStart=/usr/bin/dockerd
+EOF
+
+    systemctl daemon-reload >> "${LOG_FILE}" 2>&1
+    success "Docker systemd override 設定完成: ${override_file}"
 }
 
 # 重新載入 Docker daemon
@@ -465,6 +504,9 @@ install_docker() {
     # 配置 Docker daemon
     configure_docker_daemon
 
+    # 設定 systemd override（WSL + TCP host 衝突處理）
+    setup_docker_systemd_override
+
     # 設定 Docker 服務
     setup_docker_service
 
@@ -498,6 +540,19 @@ install_docker() {
         echo "" | tee -a "${LOG_FILE}"
         echo "  注意: 請重新登入或執行 'newgrp docker' 以套用群組變更" | tee -a "${LOG_FILE}"
     fi
+
+    if grep -qi microsoft /proc/version && [[ "${DOCKER_WINDOWS_HOST}" == "true" ]]; then
+        echo "" | tee -a "${LOG_FILE}"
+        info "Windows 存取 WSL Docker Engine 設定："
+        echo "  Docker daemon 已開放 TCP port ${DOCKER_TCP_PORT}" | tee -a "${LOG_FILE}"
+        echo "  請在 Windows PowerShell 設定 DOCKER_HOST 環境變數：" | tee -a "${LOG_FILE}"
+        echo "" | tee -a "${LOG_FILE}"
+        echo "  # 暫時設定（目前 Session）" | tee -a "${LOG_FILE}"
+        echo "  \$env:DOCKER_HOST = \"tcp://localhost:${DOCKER_TCP_PORT}\"" | tee -a "${LOG_FILE}"
+        echo "" | tee -a "${LOG_FILE}"
+        echo "  # 永久設定（使用者層級）" | tee -a "${LOG_FILE}"
+        echo "  [System.Environment]::SetEnvironmentVariable(\"DOCKER_HOST\", \"tcp://localhost:${DOCKER_TCP_PORT}\", \"User\")" | tee -a "${LOG_FILE}"
+    fi
 }
 
 # 匯出函式供主腳本使用
@@ -509,6 +564,7 @@ export -f install_docker_engine
 export -f setup_docker_service
 export -f setup_docker_user_group
 export -f configure_docker_daemon
+export -f setup_docker_systemd_override
 export -f reload_docker_daemon
 export -f verify_docker_installation
 export -f show_docker_info

@@ -83,9 +83,6 @@ cp .env.example .env
 編輯 `.env`：
 
 ```ini
-# 指定發行版（可選，未設定則預設安裝 Ubuntu 24.04）
-DISTRO_NAME=Ubuntu-24.04
-
 # WSL 使用者帳號
 WSL_USERNAME=your_username
 WSL_PASSWORD=your_password

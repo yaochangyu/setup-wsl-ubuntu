@@ -33,7 +33,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$DistroName    = "",   # 優先順序：參數 > .env DISTRO_NAME > 預設 Ubuntu-24.04
+    [string]$DistroName    = "",   # 優先順序：參數 > 預設 Ubuntu-24.04
     [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
     [string]$WslPassword   = "",   # 優先順序：參數 > .env WSL_PASSWORD > "changeme"
     [string]$Proxy         = "",
@@ -241,16 +241,10 @@ function Main {
 
     # 從 .env 載入設定，優先順序：參數 > .env > 後備預設值
     $dotenv = Read-DotEnv
-    if (-not $DistroName)  { $DistroName  = $dotenv['DISTRO_NAME'] }
     if (-not $WslUsername) { $WslUsername = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao'      } }
     if (-not $WslPassword) { $WslPassword = if ($dotenv['WSL_PASSWORD']) { $dotenv['WSL_PASSWORD'] } else { 'changeme' } }
 
-    # 優先順序：參數 > .env DISTRO_NAME > 預設 Ubuntu-24.04
-    if ($DistroName) {
-        $Script:DistroName = $DistroName
-    } else {
-        $Script:DistroName = "Ubuntu-24.04"
-    }
+    $Script:DistroName = if ($DistroName) { $DistroName } else { "Ubuntu-24.04" }
 
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "WSL Ubuntu 安裝程式" -ForegroundColor Cyan
