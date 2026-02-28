@@ -211,7 +211,7 @@ function Main {
 
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "Ubuntu 開發工具安裝程式" -ForegroundColor Cyan
-    Write-Host "========================================`n" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
 
     Initialize-LogDirectory
     Write-Log "啟動 Ubuntu 工具安裝程式" "Success"
