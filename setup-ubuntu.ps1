@@ -9,7 +9,8 @@
     3. 驗證安裝結果
 
 .PARAMETER DistroName
-    WSL 發行版完整名稱（例如: Ubuntu-24.04），優先順序：參數 > 預設 Ubuntu-24.04
+    WSL 發行版完整名稱（例如: Ubuntu-24.04）
+    優先順序：手動指定 > .env UBUNTU_VERSION > 預設 Ubuntu-24.04
 
 .PARAMETER WslUsername
     WSL 使用者名稱，預設為 yao
@@ -33,7 +34,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$DistroName    = "",   # 優先順序：參數 > 預設 Ubuntu-24.04
+    [string]$DistroName    = "",   # 優先順序：手動指定 > .env UBUNTU_VERSION > 預設 Ubuntu-24.04
     [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
     [string]$WslPassword   = "",   # 優先順序：參數 > .env WSL_PASSWORD > "changeme"
     [string]$Proxy         = "",
@@ -244,7 +245,8 @@ function Main {
     if (-not $WslUsername) { $WslUsername = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao'      } }
     if (-not $WslPassword) { $WslPassword = if ($dotenv['WSL_PASSWORD']) { $dotenv['WSL_PASSWORD'] } else { 'changeme' } }
 
-    $Script:DistroName = if ($DistroName) { $DistroName } else { "Ubuntu-24.04" }
+    $ubuntuVersion     = if ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { "24.04" }
+    $Script:DistroName = if ($DistroName) { $DistroName } else { "Ubuntu-$ubuntuVersion" }
 
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "WSL Ubuntu 安裝程式" -ForegroundColor Cyan
@@ -288,7 +290,6 @@ function Main {
         $installToolsScript = Join-Path $PSScriptRoot "install-linux-tools.ps1"
         if (Test-Path $installToolsScript) {
             $installArgs = @{
-                DistroName  = $Script:DistroName
                 WslUsername = $WslUsername
                 LogPath     = $LogPath
             }

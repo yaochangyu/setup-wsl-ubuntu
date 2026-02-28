@@ -545,13 +545,15 @@ install_docker() {
         echo "" | tee -a "${LOG_FILE}"
         info "Windows 存取 WSL Docker Engine 設定："
         echo "  Docker daemon 已開放 TCP port ${DOCKER_TCP_PORT}" | tee -a "${LOG_FILE}"
-        echo "  請在 Windows PowerShell 設定 DOCKER_HOST 環境變數：" | tee -a "${LOG_FILE}"
+        echo "  install-linux-tools.ps1 會自動在 Windows 建立 Docker context" | tee -a "${LOG_FILE}"
         echo "" | tee -a "${LOG_FILE}"
-        echo "  # 暫時設定（目前 Session）" | tee -a "${LOG_FILE}"
-        echo "  \$env:DOCKER_HOST = \"tcp://localhost:${DOCKER_TCP_PORT}\"" | tee -a "${LOG_FILE}"
+        echo "  若需手動建立，請在 Windows PowerShell 執行：" | tee -a "${LOG_FILE}"
+        echo "  docker context create <distro-name> --docker \"host=tcp://localhost:${DOCKER_TCP_PORT}\"" | tee -a "${LOG_FILE}"
         echo "" | tee -a "${LOG_FILE}"
-        echo "  # 永久設定（使用者層級）" | tee -a "${LOG_FILE}"
-        echo "  [System.Environment]::SetEnvironmentVariable(\"DOCKER_HOST\", \"tcp://localhost:${DOCKER_TCP_PORT}\", \"User\")" | tee -a "${LOG_FILE}"
+        echo "  切換 context：docker context use <distro-name>" | tee -a "${LOG_FILE}"
+        echo "  查看所有 context：docker context ls" | tee -a "${LOG_FILE}"
+        echo "" | tee -a "${LOG_FILE}"
+        echo "  注意：若有設定 DOCKER_HOST 環境變數，會覆蓋 Docker context 設定" | tee -a "${LOG_FILE}"
     fi
 }
 

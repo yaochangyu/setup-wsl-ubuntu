@@ -8,9 +8,6 @@
     2. 將 Windows 路徑轉換為 WSL 路徑
     3. 以 root 身分執行 install-linux-tools.sh
 
-.PARAMETER DistroName
-    WSL 發行版完整名稱（例如: Ubuntu-24.04），優先順序：參數 > 預設 Ubuntu-24.04
-
 .PARAMETER WslUsername
     WSL 使用者名稱，用於設定工具的擁有者（例如加入 docker 群組），預設為 yao
 
@@ -27,9 +24,6 @@
     .\install-linux-tools.ps1
 
 .EXAMPLE
-    .\install-linux-tools.ps1 -DistroName Ubuntu-24.04
-
-.EXAMPLE
     .\install-linux-tools.ps1 -Proxy http://proxy.example.com:8080
 
 .EXAMPLE
@@ -41,7 +35,6 @@
 
 [CmdletBinding()]
 param(
-    [string]$DistroName  = "",   # 優先順序：參數 > 預設 Ubuntu-24.04
     [string]$WslUsername = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
     [string]$Proxy         = "",
     [switch]$SkipVerify,
@@ -192,21 +185,51 @@ function Invoke-LinuxToolsInstall {
 # Windows 環境設定
 # ============================================
 
-function Set-DockerHostEnv {
-    param([string]$Port = "2375")
+function Register-DockerContext {
+    param(
+        [string]$ContextName,
+        [string]$Port = "2375"
+    )
 
-    $value = "tcp://localhost:$Port"
-    $current = [System.Environment]::GetEnvironmentVariable("DOCKER_HOST", "User")
+    $endpoint = "tcp://localhost:$Port"
 
-    if ($current -eq $value) {
-        Write-Log "DOCKER_HOST 已設定為 $value，跳過" "Info"
+    # 檢查 docker CLI 是否存在
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        Write-Log "docker CLI 未找到，跳過 Docker Context 設定" "Warning"
+        Write-Log "請先安裝 Docker Desktop 或 Docker CLI，再手動執行：" "Info"
+        Write-Log "  docker context create $ContextName --docker `"host=$endpoint`"" "Info"
         return
     }
 
-    [System.Environment]::SetEnvironmentVariable("DOCKER_HOST", $value, "User")
-    $env:DOCKER_HOST = $value
-    Write-Log "已設定 Windows 使用者環境變數 DOCKER_HOST=$value" "Success"
-    Write-Log "開啟新的終端機後即可在 Windows 直接使用 WSL Docker Engine" "Info"
+    # 檢查 context 是否已存在
+    $existingContexts = docker context ls --format "{{.Name}}" 2>&1
+    $contextExists = $existingContexts | Where-Object { $_ -eq $ContextName }
+
+    if ($contextExists) {
+        docker context update $ContextName --docker "host=$endpoint" 2>&1 | Out-Null
+        Write-Log "已更新 Docker context: $ContextName -> $endpoint" "Success"
+    } else {
+        docker context create $ContextName --docker "host=$endpoint" 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "已建立 Docker context: $ContextName -> $endpoint" "Success"
+        } else {
+            Write-Log "建立 Docker context 失敗，請手動執行：" "Warning"
+            Write-Log "  docker context create $ContextName --docker `"host=$endpoint`"" "Info"
+            return
+        }
+    }
+
+    # DOCKER_HOST 設定時會覆蓋 context，提示使用者
+    $dockerHostEnv = [System.Environment]::GetEnvironmentVariable("DOCKER_HOST", "User")
+    if ($dockerHostEnv) {
+        Write-Log "注意：DOCKER_HOST 環境變數已設定（$dockerHostEnv），會覆蓋 Docker context 設定" "Warning"
+        Write-Log "建議移除 DOCKER_HOST，改用 docker context 切換：" "Warning"
+        Write-Log "  [System.Environment]::SetEnvironmentVariable('DOCKER_HOST', `$null, 'User')" "Info"
+    }
+
+    Write-Log "切換 Docker context 指令：" "Info"
+    Write-Log "  docker context use $ContextName" "Info"
+    Write-Log "  docker context ls  # 查看所有 context" "Info"
 }
 
 # ============================================
@@ -222,7 +245,8 @@ function Main {
     $dotenv = Read-DotEnv
     if (-not $WslUsername) { $WslUsername = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao' } }
 
-    $Script:DistroName = if ($DistroName) { $DistroName } else { "Ubuntu-24.04" }
+    $ubuntuVersion     = if ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { "24.04" }
+    $Script:DistroName = "Ubuntu-$ubuntuVersion"
 
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "Ubuntu 開發工具安裝程式" -ForegroundColor Cyan
@@ -246,9 +270,10 @@ function Main {
             Write-Log "安裝未完全成功，請查看日誌" "Warning"
         }
 
-        # 設定 Windows 端 DOCKER_HOST，讓 Windows 直接存取 WSL Docker Engine
+        # 在 Windows 建立 Docker context，讓 Windows 端透過 context 切換存取各 WSL Docker Engine
         $dockerPort = if ($dotenv['DOCKER_TCP_PORT']) { $dotenv['DOCKER_TCP_PORT'] } else { "2375" }
-        Set-DockerHostEnv -Port $dockerPort
+        $contextName = $Script:DistroName.ToLower()   # 例：Ubuntu-24.04 -> ubuntu-24.04
+        Register-DockerContext -ContextName $contextName -Port $dockerPort
 
         Write-Progress-Log -Activity "Linux 工具安裝" -Status "安裝完成" -PercentComplete 100
 
@@ -259,7 +284,7 @@ function Main {
         Write-Log "1. 重新登入後執行: newgrp docker（讓 docker 群組生效）"
         Write-Log "2. 驗證 Docker: docker run hello-world"
         Write-Log "3. 驗證 .NET: dotnet --list-sdks"
-        Write-Log "4. Windows 已可直接使用 WSL Docker（DOCKER_HOST 已設定）"
+        Write-Log "4. Windows Docker context 已建立: $contextName（docker context use $contextName）"
         Write-Log "日誌檔案位置: $Global:LogFile"
     }
     catch {
