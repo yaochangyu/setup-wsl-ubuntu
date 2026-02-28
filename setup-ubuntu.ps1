@@ -186,9 +186,9 @@ function Set-DefaultUser {
 
         wsl -d $Script:DistroName -u root -- bash -c $createCmd 2>&1 | ForEach-Object { Write-Log $_ }
 
-        # 寫入 wsl.conf 設定預設使用者
-        wsl -d $Script:DistroName -u root -- bash -c "printf '[user]\ndefault=$WslUsername\n' > /etc/wsl.conf" 2>&1 | Out-Null
-        Write-Log "/etc/wsl.conf 設定完成，預設使用者為 $WslUsername" "Success"
+        # 寫入 wsl.conf：啟用 systemd（Docker 自動啟動需要）並設定預設使用者
+        wsl -d $Script:DistroName -u root -- bash -c "printf '[boot]\nsystemd=true\n\n[user]\ndefault=$WslUsername\n' > /etc/wsl.conf" 2>&1 | Out-Null
+        Write-Log "/etc/wsl.conf 設定完成（systemd=true, 預設使用者為 $WslUsername）" "Success"
 
         # 終止 distro，讓 wsl.conf 在下次啟動時生效
         wsl --terminate $Script:DistroName 2>&1 | Out-Null
