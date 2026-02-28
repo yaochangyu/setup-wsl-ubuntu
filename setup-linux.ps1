@@ -272,10 +272,10 @@ function Test-Installation {
         Write-Log "WSL 版本資訊："
         wsl --version 2>&1 | ForEach-Object { Write-Log $_ }
 
-        Write-Log "`n已安裝的 Linux 發行版："
+        Write-Log "已安裝的 Linux 發行版："
         wsl --list --verbose 2>&1 | ForEach-Object { Write-Log $_ }
 
-        Write-Log "`n測試 WSL 連接..."
+        Write-Log "測試 WSL 連接..."
         $testResult = wsl -d $Script:DistroName -e echo "$Script:DistroName 運作正常" 2>&1
 
         if ($LASTEXITCODE -eq 0) {
@@ -320,7 +320,7 @@ function Main {
 
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "WSL Linux 發行版安裝程式" -ForegroundColor Cyan
-    Write-Host "========================================`n" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
 
     # 發行版未指定時顯示互動選單
     if (-not $Script:DistroName) {
@@ -350,16 +350,16 @@ function Main {
 
         Write-Progress-Log -Activity "WSL 安裝" -Status "安裝完成" -PercentComplete 100
 
-        Write-Log "`n========================================" "Success"
+        Write-Log "========================================" "Success"
         Write-Log "$Script:DistroName 安裝完成！" "Success"
         Write-Log "========================================" "Success"
-        Write-Log "`n使用者帳號資訊："
+        Write-Log "使用者帳號資訊："
         Write-Log "  使用者名稱: $WslUsername"
         Write-Log "  密碼: $WslPassword"
-        Write-Log "`n日誌檔案位置: $Global:LogFile"
+        Write-Log "日誌檔案位置: $Global:LogFile"
 
         # 安裝開發工具
-        Write-Log "`n========================================" "Info"
+        Write-Log "========================================" "Info"
         Write-Log "開始安裝開發工具..." "Info"
         Write-Log "========================================" "Info"
 
@@ -379,11 +379,11 @@ function Main {
         }
     }
     catch {
-        Write-Log "`n========================================" "Error"
+        Write-Log "========================================" "Error"
         Write-Log "安裝過程發生錯誤" "Error"
         Write-Log "錯誤訊息: $($_.Exception.Message)" "Error"
         Write-Log "========================================" "Error"
-        Write-Log "`n請檢查日誌檔案: $Global:LogFile" "Error"
+        Write-Log "請檢查日誌檔案: $Global:LogFile" "Error"
         exit 1
     }
     finally {
