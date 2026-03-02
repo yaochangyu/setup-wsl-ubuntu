@@ -64,10 +64,24 @@ EOF
     fi
 
     # 安裝指定 Python 版本
-    info "安裝 Python ${PYTHON_VERSION}..."
-    sudo -u "${actual_user}" bash -c "export PYENV_ROOT='${user_home}/.pyenv' && export PATH='\$PYENV_ROOT/bin:\$PATH' && eval '\$(pyenv init -)' && pyenv install ${PYTHON_VERSION} -s" >> "${LOG_FILE}" 2>&1 || warning "Python ${PYTHON_VERSION} 安裝失敗"
+    local pyenv_root="${user_home}/.pyenv"
 
-    sudo -u "${actual_user}" bash -c "export PYENV_ROOT='${user_home}/.pyenv' && export PATH='\$PYENV_ROOT/bin:\$PATH' && eval '\$(pyenv init -)' && pyenv global ${PYTHON_VERSION}" >> "${LOG_FILE}" 2>&1 || warning "Python 設定失敗"
+    info "安裝 Python ${PYTHON_VERSION}..."
+    if ! sudo -u "${actual_user}" \
+        env PYENV_ROOT="${pyenv_root}" PATH="${pyenv_root}/bin:${PATH}" \
+        bash -c "pyenv install ${PYTHON_VERSION} -s" >> "${LOG_FILE}" 2>&1; then
+        error "Python ${PYTHON_VERSION} 安裝失敗"
+        INSTALL_STATUS["python"]="failed"
+        return 1
+    fi
+
+    if ! sudo -u "${actual_user}" \
+        env PYENV_ROOT="${pyenv_root}" PATH="${pyenv_root}/bin:${PATH}" \
+        bash -c "pyenv global ${PYTHON_VERSION}" >> "${LOG_FILE}" 2>&1; then
+        error "Python ${PYTHON_VERSION} 設定失敗"
+        INSTALL_STATUS["python"]="failed"
+        return 1
+    fi
 
     success "Python 與 pyenv 安裝完成"
     INSTALL_STATUS["python"]="success"
