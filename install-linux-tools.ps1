@@ -167,17 +167,22 @@ function Invoke-LinuxToolsInstall {
     # TERM=dumb 讓 bash 腳本不輸出 ANSI 色彩碼，避免 PowerShell 捕捉到亂碼
     $wslScriptDir = $wslScriptPath.Substring(0, $wslScriptPath.LastIndexOf('/'))
     $bashCmd = "export SUDO_USER=$WslUsername TERM=$Script:BashTerm SCRIPT_DIR='$wslScriptDir' DOCKER_TCP_PORT=$Script:DockerPort; sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
-    wsl -d $Script:DistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
+
+    # 先收集輸出再捕捉 exit code，避免 PowerShell pipeline 造成 $LASTEXITCODE 不準確
+    $wslOutput = wsl -d $Script:DistroName -u root -- bash -c $bashCmd 2>&1
+    $wslExitCode = $LASTEXITCODE
+
+    $wslOutput | ForEach-Object {
         # 過濾掉殘留的 ANSI escape code 再寫入 log
         $line = [regex]::Replace("$_", '\x1b\[[0-9;]*[mKHJ]', '')
         Write-Log $line
     }
 
-    if ($LASTEXITCODE -eq 0) {
+    if ($wslExitCode -eq 0) {
         Write-Log "Linux 工具安裝完成" "Success"
         return $true
     } else {
-        Write-Log "Linux 工具安裝失敗 (exit code: $LASTEXITCODE)，請查看日誌" "Warning"
+        Write-Log "Linux 工具安裝失敗 (exit code: $wslExitCode)，請查看日誌" "Warning"
         return $false
     }
 }

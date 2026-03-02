@@ -485,6 +485,10 @@ parse_args() {
                 show_help
                 exit 0
                 ;;
+            --)
+                shift
+                break
+                ;;
             *)
                 error "未知選項: $1"
                 show_help
