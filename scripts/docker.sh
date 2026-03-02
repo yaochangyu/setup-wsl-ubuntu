@@ -486,43 +486,33 @@ show_docker_info() {
 install_docker() {
     print_header "安裝 Docker Engine"
 
-    # 已安裝則跳過
+    # 安裝（已安裝則跳過）
     if command -v docker &> /dev/null; then
         local docker_version
         docker_version=$(docker --version)
         info "Docker 已安裝（${docker_version}），跳過安裝"
-        INSTALL_STATUS["docker"]="success"
-        return 0
+    else
+        # 移除舊版本
+        remove_old_docker
+
+        # 安裝依賴
+        install_docker_dependencies
+
+        # 新增 GPG 金鑰
+        add_docker_gpg_key
+
+        # 新增套件來源
+        add_docker_repository
+
+        # 安裝 Docker Engine
+        install_docker_engine
     fi
 
-    # 移除舊版本
-    remove_old_docker
-
-    # 安裝依賴
-    install_docker_dependencies
-
-    # 新增 GPG 金鑰
-    add_docker_gpg_key
-
-    # 新增套件來源
-    add_docker_repository
-
-    # 安裝 Docker Engine
-    install_docker_engine
-
-    # 配置 Docker daemon
+    # 配置（每次都執行，確保設定最新）
     configure_docker_daemon
-
-    # 設定 systemd override（WSL + TCP host 衝突處理）
     setup_docker_systemd_override
-
-    # 設定 Docker 服務
     setup_docker_service
-
-    # 設定使用者群組
     setup_docker_user_group
-
-    # 重新載入 daemon
     reload_docker_daemon
 
     print_separator

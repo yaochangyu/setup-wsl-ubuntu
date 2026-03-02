@@ -30,12 +30,22 @@ install_dotnet() {
     # -------------------------------------------------------------------------
     read -ra all_versions <<< "${DOTNET_VERSIONS}"
     local installed_count=0
-
-    info "下載 dotnet-install.sh..."
-    local dotnet_install_script
-    dotnet_install_script=$(curl -fsSL https://dot.net/v1/dotnet-install.sh)
+    local dotnet_install_script=""
 
     for version in "${all_versions[@]}"; do
+        # 已安裝則跳過
+        if command -v dotnet &> /dev/null && dotnet --list-sdks 2>/dev/null | grep -q "^${version}\."; then
+            info ".NET ${version} SDK 已安裝，跳過"
+            ((installed_count++)) || true
+            continue
+        fi
+
+        # 有需要安裝時才下載（只下載一次）
+        if [[ -z "${dotnet_install_script}" ]]; then
+            info "下載 dotnet-install.sh..."
+            dotnet_install_script=$(curl -fsSL https://dot.net/v1/dotnet-install.sh)
+        fi
+
         info "安裝 .NET ${version} SDK (dotnet-install.sh)..."
         if bash <(echo "$dotnet_install_script") \
             --channel "${version}" \

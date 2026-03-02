@@ -22,28 +22,35 @@ install_nodejs() {
         return 1
     fi
 
-    info "下載並安裝 nvm..."
+    # nvm 已存在則跳過安裝
+    if [[ -d "${user_home}/.nvm" ]]; then
+        info "nvm 已安裝，跳過"
+    else
+        info "下載並安裝 nvm..."
+        sudo -u "${actual_user}" bash -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | bash" >> "${LOG_FILE}" 2>&1
 
-    # 安裝 nvm
-    sudo -u "${actual_user}" bash -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | bash" >> "${LOG_FILE}" 2>&1
-
-    if [[ ! -d "${user_home}/.nvm" ]]; then
-        error "nvm 安裝失敗"
-        return 1
+        if [[ ! -d "${user_home}/.nvm" ]]; then
+            error "nvm 安裝失敗"
+            return 1
+        fi
+        success "nvm 已安裝"
     fi
-
-    success "nvm 已安裝"
 
     # 載入 nvm
     export NVM_DIR="${user_home}/.nvm"
     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-    info "安裝 Node.js LTS 版本..."
-    sudo -u "${actual_user}" bash -c "source ${user_home}/.nvm/nvm.sh && nvm install --lts" >> "${LOG_FILE}" 2>&1
-    sudo -u "${actual_user}" bash -c "source ${user_home}/.nvm/nvm.sh && nvm use --lts" >> "${LOG_FILE}" 2>&1
+    # Node.js LTS 已安裝則跳過
+    if sudo -u "${actual_user}" bash -c "source ${user_home}/.nvm/nvm.sh && node --version" &> /dev/null; then
+        info "Node.js 已安裝，跳過"
+    else
+        info "安裝 Node.js LTS 版本..."
+        sudo -u "${actual_user}" bash -c "source ${user_home}/.nvm/nvm.sh && nvm install --lts" >> "${LOG_FILE}" 2>&1
+        sudo -u "${actual_user}" bash -c "source ${user_home}/.nvm/nvm.sh && nvm use --lts" >> "${LOG_FILE}" 2>&1
+    fi
 
-    # 安裝常用全域套件
-    info "安裝常用 npm 全域套件..."
+    # npm 全域套件（每次都確保存在）
+    info "確認 npm 全域套件（yarn、pnpm）..."
     sudo -u "${actual_user}" bash -c "source ${user_home}/.nvm/nvm.sh && npm install -g yarn pnpm" >> "${LOG_FILE}" 2>&1 || warning "全域套件安裝失敗"
 
     success "Node.js 與 nvm 安裝完成"

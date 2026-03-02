@@ -21,17 +21,19 @@ install_rust() {
         return 1
     fi
 
-    info "安裝 Rust..."
+    # 已安裝則跳過
+    if [[ -d "${user_home}/.cargo" ]]; then
+        info "Rust 已安裝，跳過"
+    else
+        info "安裝 Rust..."
+        sudo -u "${actual_user}" bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y' >> "${LOG_FILE}" 2>&1
 
-    # 使用 rustup 安裝
-    sudo -u "${actual_user}" bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y' >> "${LOG_FILE}" 2>&1
-
-    if [[ ! -d "${user_home}/.cargo" ]]; then
-        error "Rust 安裝失敗"
-        return 1
+        if [[ ! -d "${user_home}/.cargo" ]]; then
+            error "Rust 安裝失敗"
+            return 1
+        fi
+        success "Rust 已安裝"
     fi
-
-    success "Rust 已安裝"
 
     # 驗證安裝
     if sudo -u "${actual_user}" bash -c "source ${user_home}/.cargo/env && rustc --version" >> "${LOG_FILE}" 2>&1; then

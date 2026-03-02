@@ -24,6 +24,18 @@ install_go() {
     fi
     info "目標版本: Go ${go_version}"
 
+    # 已安裝且版本一致則跳過
+    if /usr/local/go/bin/go version &> /dev/null; then
+        local current_version
+        current_version=$(/usr/local/go/bin/go version | grep -oP 'go\K[\d.]+')
+        if [[ "${current_version}" == "${go_version}" ]]; then
+            info "Go ${go_version} 已安裝，跳過"
+            INSTALL_STATUS["go"]="success"
+            return 0
+        fi
+        info "Go 版本不同（已安裝: ${current_version}，目標: ${go_version}），重新安裝..."
+    fi
+
     local go_url="https://go.dev/dl/go${go_version}.linux-amd64.tar.gz"
     local go_tar="/tmp/go${go_version}.linux-amd64.tar.gz"
 

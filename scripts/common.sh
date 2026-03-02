@@ -428,8 +428,12 @@ EOF
     sudo -u "${actual_user}" mkdir -p "${user_home}/projects"
 
     # Starship - 華麗的 Bash 提示符號
-    info "安裝 Starship 提示符號..."
-    curl -sS https://starship.rs/install.sh | sh -s -- -y >> "${LOG_FILE}" 2>&1 || warning "Starship 安裝失敗"
+    if command -v starship &> /dev/null; then
+        info "Starship 已安裝，跳過"
+    else
+        info "安裝 Starship 提示符號..."
+        curl -sS https://starship.rs/install.sh | sh -s -- -y >> "${LOG_FILE}" 2>&1 || warning "Starship 安裝失敗"
+    fi
 
     if command -v starship &> /dev/null; then
         info "套用 Starship catppuccin-powerline 主題..."
@@ -535,6 +539,11 @@ install_better_rm() {
 
 # 安裝 fzf（從 GitHub 下載最新版，避免 apt 舊版不支援 --bash 的問題）
 install_fzf() {
+    if command -v fzf &> /dev/null; then
+        info "fzf 已安裝，跳過"
+        return 0
+    fi
+
     info "安裝 fzf..."
 
     local actual_user="${SUDO_USER:-$USER}"
@@ -571,6 +580,11 @@ install_fzf() {
 
 # 安裝 yq（YAML 處理，從 GitHub 下載）
 install_yq() {
+    if command -v yq &> /dev/null; then
+        info "yq 已安裝，跳過"
+        return 0
+    fi
+
     info "安裝 yq..."
     wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
     chmod +x /usr/local/bin/yq
