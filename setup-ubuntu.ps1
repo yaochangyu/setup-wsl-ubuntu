@@ -8,9 +8,10 @@
     2. 建立預設使用者
     3. 驗證安裝結果
 
-.PARAMETER DistroName
-    WSL 發行版完整名稱（例如: Ubuntu-24.04）
-    優先順序：手動指定 > .env UBUNTU_VERSION > 預設 Ubuntu-24.04
+.PARAMETER UbuntuVersion
+    Ubuntu 版本號（例如: 24.04、22.04）
+    不指定時安裝最新 LTS（distro name = Ubuntu）
+    優先順序：手動指定 > .env UBUNTU_VERSION > 空值（Ubuntu 最新 LTS）
 
 .PARAMETER WslUsername
     WSL 使用者名稱，預設為 yao
@@ -25,7 +26,7 @@
     .\setup-ubuntu.ps1
 
 .EXAMPLE
-    .\setup-ubuntu.ps1 -DistroName Ubuntu-24.04 -WslUsername myuser
+    .\setup-ubuntu.ps1 -UbuntuVersion 22.04 -WslUsername myuser
 
 .NOTES
     執行前請確認已完成 setup-wsl2-features.ps1（需要管理員）
@@ -34,7 +35,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$DistroName    = "",   # 優先順序：手動指定 > .env UBUNTU_VERSION > 預設 Ubuntu-24.04
+    [string]$UbuntuVersion = "",   # 優先順序：參數 > .env UBUNTU_VERSION > 空值（安裝 Ubuntu 最新 LTS）
     [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
     [string]$WslPassword   = "",   # 優先順序：參數 > .env WSL_PASSWORD > "changeme"
     [string]$Proxy         = "",
@@ -158,6 +159,25 @@ function Install-Distro {
     }
 }
 
+function Set-WslConfig {
+    Write-Log "寫入 /etc/wsl.conf..."
+
+    $wslConfLines = @(
+        "[boot]",
+        "systemd=true",
+        "",
+        "[user]",
+        "default=$WslUsername",
+        "",
+        "[interop]",
+        "enabled=true",
+        "appendWindowsPath=true"
+    )
+    $wslConfContent = $wslConfLines -join "\n"
+    wsl -d $Script:DistroName -u root -- bash -c "printf '$wslConfContent\n' > /etc/wsl.conf" 2>&1 | Out-Null
+    Write-Log "/etc/wsl.conf 設定完成（systemd=true, 預設使用者為 $WslUsername, interop=true）" "Success"
+}
+
 function Set-DefaultUser {
     Write-Log "設定預設使用者..."
     Write-Progress-Log -Activity "WSL 安裝" -Status "設定預設使用者" -PercentComplete 70
@@ -186,9 +206,7 @@ function Set-DefaultUser {
 
         wsl -d $Script:DistroName -u root -- bash -c $createCmd 2>&1 | ForEach-Object { Write-Log $_ }
 
-        # 寫入 wsl.conf：啟用 systemd（Docker 自動啟動需要）並設定預設使用者
-        wsl -d $Script:DistroName -u root -- bash -c "printf '[boot]\nsystemd=true\n\n[user]\ndefault=$WslUsername\n' > /etc/wsl.conf" 2>&1 | Out-Null
-        Write-Log "/etc/wsl.conf 設定完成（systemd=true, 預設使用者為 $WslUsername）" "Success"
+        Set-WslConfig
 
         # 終止 distro，讓 wsl.conf 在下次啟動時生效
         wsl --terminate $Script:DistroName 2>&1 | Out-Null
@@ -245,8 +263,8 @@ function Main {
     if (-not $WslUsername) { $WslUsername = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao'      } }
     if (-not $WslPassword) { $WslPassword = if ($dotenv['WSL_PASSWORD']) { $dotenv['WSL_PASSWORD'] } else { 'changeme' } }
 
-    $ubuntuVersion     = if ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { "24.04" }
-    $Script:DistroName = if ($DistroName) { $DistroName } else { "Ubuntu-$ubuntuVersion" }
+    $resolvedVersion   = if ($UbuntuVersion) { $UbuntuVersion } elseif ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { "" }
+    $Script:DistroName = if ($resolvedVersion) { "Ubuntu-$resolvedVersion" } else { "Ubuntu" }
 
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "WSL Ubuntu 安裝程式" -ForegroundColor Cyan
@@ -290,8 +308,9 @@ function Main {
         $installToolsScript = Join-Path $PSScriptRoot "install-linux-tools.ps1"
         if (Test-Path $installToolsScript) {
             $installArgs = @{
-                WslUsername = $WslUsername
-                LogPath     = $LogPath
+                UbuntuVersion = $resolvedVersion
+                WslUsername   = $WslUsername
+                LogPath       = $LogPath
             }
             if ($Proxy)      { $installArgs["Proxy"]      = $Proxy }
             if ($SkipVerify) { $installArgs["SkipVerify"] = $true  }

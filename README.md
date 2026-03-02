@@ -49,8 +49,11 @@ cd D:\lab\setup-wsl-ubuntu
 如需直接指定：
 
 ```powershell
-# 指定發行版完整名稱（建議）
-.\setup-ubuntu.ps1 -DistroName Ubuntu-24.04 -WslUsername myuser -WslPassword mypassword
+# 指定版本號（安裝 Ubuntu-24.04）
+.\setup-ubuntu.ps1 -UbuntuVersion 24.04 -WslUsername myuser -WslPassword mypassword
+
+# 不指定版本：安裝最新 LTS（distro name = Ubuntu）
+.\setup-ubuntu.ps1
 
 # 或透過 .env 檔案設定（詳見「環境設定檔」章節）
 ```
@@ -141,7 +144,7 @@ WSL_PASSWORD=your_password
 .\setup-ubuntu.ps1
 
 # 直接指定版本
-.\setup-ubuntu.ps1 -DistroName Ubuntu-24.04
+.\setup-ubuntu.ps1 -UbuntuVersion 24.04
 ```
 
 ### 使用代理
@@ -162,8 +165,8 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 
 ```
 參數:
-  -DistroName <名稱>      WSL 發行版完整名稱（預設: Ubuntu-24.04）
-                          例: Ubuntu-24.04
+  -UbuntuVersion <版號>   Ubuntu 版本號（例: 24.04、22.04）
+                          不指定則安裝最新 LTS（distro name = Ubuntu）
   -WslUsername <名稱>     WSL 使用者名稱（預設: yao）
   -WslPassword <密碼>     WSL 使用者密碼（預設: changeme）
   -Proxy <url>            設定代理伺服器
@@ -174,8 +177,8 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 
 ```
 參數:
-  -DistroName <名稱>      WSL 發行版完整名稱（預設: Ubuntu-24.04）
-                          例: Ubuntu-24.04
+  -UbuntuVersion <版號>   Ubuntu 版本號（例: 24.04、22.04）
+                          優先順序：參數 > .env UBUNTU_VERSION > 24.04
   -WslUsername <名稱>     WSL 使用者名稱（預設: yao）
   -Proxy <url>            設定代理伺服器
   -SkipVerify             跳過安裝驗證
@@ -238,6 +241,24 @@ wsl
 **解決：**
 ```bash
 sudo service docker start
+```
+
+### WSL interop 問題
+
+**問題：** 執行 Windows 程式（如 `code .`）出現 `Exec format error`
+**解決：** `/etc/wsl.conf` 缺少 `[interop]` 設定，手動加入後重啟 WSL：
+```bash
+sudo tee -a /etc/wsl.conf <<'EOF'
+
+[interop]
+enabled=true
+appendWindowsPath=true
+EOF
+```
+```powershell
+# Windows PowerShell
+wsl --shutdown
+wsl
 ```
 
 ### 其他問題
@@ -350,4 +371,4 @@ MIT License
 
 ---
 
-**最後更新：** 2026-02-27
+**最後更新：** 2026-03-03

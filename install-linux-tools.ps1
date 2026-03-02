@@ -35,7 +35,8 @@
 
 [CmdletBinding()]
 param(
-    [string]$WslUsername = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
+    [string]$UbuntuVersion = "",   # 優先順序：參數 > .env UBUNTU_VERSION > "24.04"
+    [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
     [string]$Proxy         = "",
     [switch]$SkipVerify,
     [string]$LogPath       = "$PSScriptRoot\logs"
@@ -281,8 +282,8 @@ function Main {
     $dotenv = Read-DotEnv
     if (-not $WslUsername) { $WslUsername = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao' } }
 
-    $ubuntuVersion     = if ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { "24.04" }
-    $Script:DistroName = "Ubuntu-$ubuntuVersion"
+    $resolvedVersion   = if ($UbuntuVersion) { $UbuntuVersion } elseif ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { "24.04" }
+    $Script:DistroName = "Ubuntu-$resolvedVersion"
 
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "Ubuntu 開發工具安裝程式" -ForegroundColor Cyan
