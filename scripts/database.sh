@@ -15,38 +15,44 @@ install_database_tools() {
     print_header "安裝資料庫客戶端工具"
 
     # PostgreSQL 客戶端
-    info "安裝 PostgreSQL 客戶端..."
-    apt-get install -y postgresql-client >> "${LOG_FILE}" 2>&1
-
     if command -v psql &> /dev/null; then
-        success "PostgreSQL 客戶端: $(psql --version)"
+        info "PostgreSQL 客戶端已安裝，跳過"
+    else
+        info "安裝 PostgreSQL 客戶端..."
+        apt-get install -y postgresql-client >> "${LOG_FILE}" 2>&1
     fi
+    command -v psql &> /dev/null && success "PostgreSQL 客戶端: $(psql --version)"
 
     # MSSQL 客戶端
-    info "安裝 MSSQL 客戶端工具..."
-
-    # 若 microsoft-prod.list 已由 dotnet 模組建立，直接複用，否則手動新增
-    if [[ ! -f /etc/apt/sources.list.d/microsoft-prod.list ]]; then
-        curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | \
-            gpg --dearmor -o /etc/apt/trusted.gpg.d/microsoft.gpg >> "${LOG_FILE}" 2>&1
-        curl -fsSL "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list" \
-            -o /etc/apt/sources.list.d/microsoft-prod.list >> "${LOG_FILE}" 2>&1
-    fi
-
-    # 移除舊的重複來源（msprod.list）
-    rm -f /etc/apt/sources.list.d/msprod.list
-
-    apt-get update -qq >> "${LOG_FILE}" 2>&1
-
-    # Ubuntu 22.04+ 使用 mssql-tools18，路徑為 /opt/mssql-tools18/bin
     local mssql_pkg="mssql-tools18"
     local mssql_bin="/opt/mssql-tools18/bin"
-    if ! ACCEPT_EULA=Y apt-get install -y "${mssql_pkg}" unixodbc-dev >> "${LOG_FILE}" 2>&1; then
-        warning "mssql-tools18 安裝失敗，嘗試舊版 mssql-tools..."
-        mssql_pkg="mssql-tools"
-        mssql_bin="/opt/mssql-tools/bin"
-        ACCEPT_EULA=Y apt-get install -y "${mssql_pkg}" unixodbc-dev >> "${LOG_FILE}" 2>&1 || \
-            warning "MSSQL 客戶端安裝失敗"
+
+    if [[ -f "${mssql_bin}/sqlcmd" ]]; then
+        info "MSSQL 客戶端已安裝，跳過"
+    else
+        info "安裝 MSSQL 客戶端工具..."
+
+        # 若 microsoft-prod.list 已由 dotnet 模組建立，直接複用，否則手動新增
+        if [[ ! -f /etc/apt/sources.list.d/microsoft-prod.list ]]; then
+            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | \
+                gpg --dearmor -o /etc/apt/trusted.gpg.d/microsoft.gpg >> "${LOG_FILE}" 2>&1
+            curl -fsSL "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list" \
+                -o /etc/apt/sources.list.d/microsoft-prod.list >> "${LOG_FILE}" 2>&1
+        fi
+
+        # 移除舊的重複來源（msprod.list）
+        rm -f /etc/apt/sources.list.d/msprod.list
+
+        apt-get update -qq >> "${LOG_FILE}" 2>&1
+
+        # Ubuntu 22.04+ 使用 mssql-tools18，路徑為 /opt/mssql-tools18/bin
+        if ! ACCEPT_EULA=Y apt-get install -y "${mssql_pkg}" unixodbc-dev >> "${LOG_FILE}" 2>&1; then
+            warning "mssql-tools18 安裝失敗，嘗試舊版 mssql-tools..."
+            mssql_pkg="mssql-tools"
+            mssql_bin="/opt/mssql-tools/bin"
+            ACCEPT_EULA=Y apt-get install -y "${mssql_pkg}" unixodbc-dev >> "${LOG_FILE}" 2>&1 || \
+                warning "MSSQL 客戶端安裝失敗"
+        fi
     fi
 
     # 新增到 PATH

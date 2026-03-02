@@ -16,7 +16,7 @@ install_devops_tools() {
         install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
         rm -f kubectl
     fi
-    command -v kubectl &> /dev/null && success "kubectl: $(kubectl version --client --short 2>/dev/null | head -n1)"
+    command -v kubectl &> /dev/null && success "kubectl: $(kubectl version --client 2>/dev/null | grep 'Client Version' | head -n1)"
 
     # Helm
     if command -v helm &> /dev/null; then
