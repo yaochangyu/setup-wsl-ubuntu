@@ -7,6 +7,13 @@
 install_vscode_server() {
     print_header "設定 VS Code Remote 支援"
 
+    # 依賴已存在則跳過
+    if command -v wget &> /dev/null && dpkg -l ca-certificates &> /dev/null; then
+        info "VS Code Remote 依賴已安裝，跳過"
+        INSTALL_STATUS["vscode"]="success"
+        return 0
+    fi
+
     info "VS Code Server 會在首次透過 Remote-SSH 連接時自動安裝"
 
     # 安裝必要的依賴

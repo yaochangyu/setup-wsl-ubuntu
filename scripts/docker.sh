@@ -486,6 +486,15 @@ show_docker_info() {
 install_docker() {
     print_header "安裝 Docker Engine"
 
+    # 已安裝則跳過
+    if command -v docker &> /dev/null; then
+        local docker_version
+        docker_version=$(docker --version)
+        info "Docker 已安裝（${docker_version}），跳過安裝"
+        INSTALL_STATUS["docker"]="success"
+        return 0
+    fi
+
     # 移除舊版本
     remove_old_docker
 
