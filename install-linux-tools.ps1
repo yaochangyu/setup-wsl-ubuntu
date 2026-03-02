@@ -240,6 +240,16 @@ function Register-DockerContext {
 # Docker Port 自動偵測
 # ============================================
 
+function Get-ExistingWslDockerPort {
+    # 查詢 WSL Docker daemon.json 內已配置的 TCP port
+    $result = wsl -d $Script:DistroName -u root -- bash -c `
+        "grep -oP '""tcp://[^""]*:(\d+)""' /etc/docker/daemon.json 2>/dev/null | grep -oP '\d+$' | head -1" 2>&1
+    if ($LASTEXITCODE -eq 0 -and "$result" -match '^\d+$') {
+        return $result.Trim()
+    }
+    return $null
+}
+
 function Find-AvailableDockerPort {
     param(
         [int]$StartPort = 2375,
@@ -306,12 +316,18 @@ function Main {
             exit 1
         }
 
-        # 決定 Docker TCP port：.env 明確指定優先，否則自動偵測可用 port
+        # 決定 Docker TCP port：優先順序 .env > WSL 現有設定 > 自動偵測
         if ($dotenv['DOCKER_TCP_PORT']) {
             $Script:DockerPort = $dotenv['DOCKER_TCP_PORT']
             Write-Log "使用 .env 指定的 Docker TCP port: $Script:DockerPort"
         } else {
-            $Script:DockerPort = Find-AvailableDockerPort
+            $existingPort = Get-ExistingWslDockerPort
+            if ($existingPort) {
+                $Script:DockerPort = $existingPort
+                Write-Log "WSL Docker 已配置 TCP port: $Script:DockerPort，沿用現有設定，跳過重新配置" "Success"
+            } else {
+                $Script:DockerPort = Find-AvailableDockerPort
+            }
         }
 
         if (-not (Invoke-LinuxToolsInstall)) {

@@ -263,6 +263,17 @@ configure_docker_daemon() {
         mkdir -p "${config_dir}"
     fi
 
+    # 偵測現有 TCP port：若已配置則沿用，不覆蓋
+    local existing_tcp_port=""
+    if [[ -f "${daemon_config}" ]]; then
+        existing_tcp_port=$(grep -oP '"tcp://[^"]*:(\d+)"' "${daemon_config}" 2>/dev/null \
+            | grep -oP '\d+$' | head -1 || true)
+        if [[ -n "${existing_tcp_port}" ]]; then
+            info "偵測到現有 Docker TCP 設定 (port ${existing_tcp_port})，沿用現有設定"
+            DOCKER_TCP_PORT="${existing_tcp_port}"
+        fi
+    fi
+
     # 備份現有配置
     if [[ -f "${daemon_config}" ]]; then
         cp "${daemon_config}" "${daemon_config}.backup-$(date +%Y%m%d-%H%M%S)"
@@ -282,7 +293,11 @@ configure_docker_daemon() {
     if grep -qi microsoft /proc/version && [[ "${DOCKER_WINDOWS_HOST}" == "true" ]]; then
         config_content+=',
   "hosts": ["unix:///var/run/docker.sock", "tcp://127.0.0.1:'"${DOCKER_TCP_PORT}"'"]'
-        info "已設定 Docker TCP host: 127.0.0.1:${DOCKER_TCP_PORT}（供 Windows 端使用）"
+        if [[ -n "${existing_tcp_port}" ]]; then
+            info "保留現有 Docker TCP host: 127.0.0.1:${DOCKER_TCP_PORT}"
+        else
+            info "已設定 Docker TCP host: 127.0.0.1:${DOCKER_TCP_PORT}（供 Windows 端使用）"
+        fi
     fi
 
     # 新增鏡像加速（如果設定）
