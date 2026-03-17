@@ -35,7 +35,7 @@ fix_vscode_websocket_error() {
     echo ""
 
     print_info "檢查 VS Code Server 狀態..."
-    
+
     # 檢查 VS Code Server 進程
     if pgrep -f "vscode-server" > /dev/null; then
         print_warning "發現 VS Code Server 進程正在運行"
@@ -50,11 +50,11 @@ fix_vscode_websocket_error() {
     # 檢查 VS Code Server 目錄
     if [ -d "$HOME/.vscode-server" ]; then
         print_info "VS Code Server 目錄存在"
-        
+
         # 顯示目錄大小
         size=$(du -sh "$HOME/.vscode-server" 2>/dev/null | cut -f1)
         print_info "目錄大小: $size"
-        
+
         # 詢問是否清除快取
         echo ""
         read -p "是否清除 VS Code Server 快取？(會保留擴充套件) [y/N] " -n 1 -r
@@ -64,7 +64,7 @@ fix_vscode_websocket_error() {
             rm -rf "$HOME/.vscode-server/data/"* 2>/dev/null
             print_success "快取已清除"
         fi
-        
+
         # 詢問是否完全重裝
         echo ""
         read -p "是否完全重新安裝 VS Code Server？(會移除所有擴充套件) [y/N] " -n 1 -r
@@ -101,7 +101,7 @@ show_diagnostic_info() {
     echo "VS Code Server 診斷資訊"
     echo "================================"
     echo ""
-    
+
     print_info "檢查 code 命令..."
     if command -v code &> /dev/null; then
         code_path=$(which code)
@@ -110,7 +110,7 @@ show_diagnostic_info() {
     else
         print_error "code 命令不存在"
     fi
-    
+
     echo ""
     print_info "檢查 VS Code Server 目錄..."
     if [ -d "$HOME/.vscode-server" ]; then
@@ -119,7 +119,7 @@ show_diagnostic_info() {
     else
         print_warning "目錄不存在: $HOME/.vscode-server"
     fi
-    
+
     echo ""
     print_info "檢查運行中的進程..."
     if pgrep -fa "vscode-server" > /dev/null; then
@@ -127,7 +127,7 @@ show_diagnostic_info() {
     else
         print_info "沒有 VS Code Server 進程"
     fi
-    
+
     echo ""
 }
 
@@ -144,7 +144,7 @@ show_menu() {
     echo "0) 退出"
     echo "================================"
     read -p "請選擇操作 [0-5]: " choice
-    
+
     case $choice in
         1)
             show_diagnostic_info
@@ -181,11 +181,13 @@ show_menu() {
     esac
 }
 
-# 執行
-if [ "$1" = "--fix" ]; then
-    fix_vscode_websocket_error
-elif [ "$1" = "--info" ]; then
-    show_diagnostic_info
-else
-    show_menu
+# 只在直接執行時進入互動模式；被 source 時只提供函式
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    if [ "$1" = "--fix" ]; then
+        fix_vscode_websocket_error
+    elif [ "$1" = "--info" ]; then
+        show_diagnostic_info
+    else
+        show_menu
+    fi
 fi

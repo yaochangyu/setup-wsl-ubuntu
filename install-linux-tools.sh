@@ -365,6 +365,18 @@ install_base_packages() {
 ###############################################################################
 
 # 載入安裝模組
+source_module() {
+    local module_path="$1"
+
+    if grep -q $'\r' "${module_path}"; then
+        debug "偵測到 CRLF，載入前轉為 LF: $(basename "${module_path}")"
+        # 透過 process substitution 正規化換行，避免 source CRLF 檔案失敗
+        source <(sed 's/\r$//' "${module_path}")
+    else
+        source "${module_path}"
+    fi
+}
+
 load_modules() {
     info "載入安裝模組..."
 
@@ -378,7 +390,7 @@ load_modules() {
 
     for module in "${SCRIPTS_DIR}"/*.sh; do
         if [[ -f "${module}" ]]; then
-            source "${module}"
+            source_module "${module}"
             ((module_count++)) || true
             debug "載入模組: $(basename "${module}")"
         fi
