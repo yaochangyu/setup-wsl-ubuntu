@@ -128,9 +128,8 @@ function Install-Distro {
 
         # 步驟 1: 下載並註冊 distro（--no-launch 避免互動式提示）
         Write-Log "正在下載 $Script:DistroName..."
-        $installCmd = "wsl --install -d $Script:DistroName --no-launch"
-        Write-Log "執行命令: $installCmd"
-        Invoke-Expression $installCmd 2>&1 | ForEach-Object { Write-Log $_ }
+        Write-Log "執行命令: wsl --install -d $Script:DistroName --no-launch"
+        & wsl --install -d $Script:DistroName --no-launch 2>&1 | ForEach-Object { Write-Log $_ }
 
         if ($LASTEXITCODE -ne 0) {
             Write-Log "wsl --install 失敗" "Error"
@@ -138,17 +137,60 @@ function Install-Distro {
             return $false
         }
 
-        # Ubuntu 發行版：用 ubuntu exe 初始化（--root 避免互動式 OOBE）
-        # 此步驟會把 Registry DefaultUid 設為 0（root），之後由 Set-DefaultUser 改寫
+        $registered = $false
+        for ($attempt = 1; $attempt -le 15; $attempt++) {
+            $registered = wsl --list --quiet 2>&1 |
+                Where-Object { $_ -match [regex]::Escape($Script:DistroName) }
+            if ($registered) {
+                break
+            }
+
+            Write-Log "等待 $Script:DistroName 完成註冊... ($attempt/15)"
+            Start-Sleep -Seconds 2
+        }
+
+        if (-not $registered) {
+            Write-Log "$Script:DistroName 安裝後未出現在 wsl --list 中，無法繼續初始化" "Error"
+            return $false
+        }
+
+        # Ubuntu 發行版的 App Execution Alias 可能需要一點時間才會出現。
+        # 若 launcher 尚未就緒，改用 wsl -d ... -u root 觸發首次初始化，避免第一次執行失敗。
         if ($Script:DistroName -match '^Ubuntu-(\d+\.\d+)$') {
             $ubuntuExe = "ubuntu$($Matches[1].Replace('.',''))"
-            Write-Log "初始化 $Script:DistroName（使用 $ubuntuExe install --root）..."
-            & $ubuntuExe install --root 2>&1 | ForEach-Object { Write-Log $_ }
+            $launcher = $null
 
-            if ($LASTEXITCODE -ne 0) {
-                Write-Log "$ubuntuExe install --root 失敗 (exit code: $LASTEXITCODE)" "Error"
-                return $false
+            for ($attempt = 1; $attempt -le 5; $attempt++) {
+                $launcher = Get-Command $ubuntuExe -ErrorAction SilentlyContinue
+                if ($launcher) {
+                    break
+                }
+
+                Write-Log "等待 $ubuntuExe launcher 可用... ($attempt/5)"
+                Start-Sleep -Seconds 2
             }
+
+            if ($launcher) {
+                Write-Log "初始化 $Script:DistroName（使用 $ubuntuExe install --root）..."
+                & $launcher.Source install --root 2>&1 | ForEach-Object { Write-Log $_ }
+
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Log "$Script:DistroName 安裝並初始化完成" "Success"
+                    return $true
+                }
+
+                Write-Log "$ubuntuExe install --root 失敗 (exit code: $LASTEXITCODE)，改用 wsl 指令初始化" "Warning"
+            } else {
+                Write-Log "找不到 $ubuntuExe launcher，改用 wsl 指令初始化" "Warning"
+            }
+        }
+
+        Write-Log "初始化 $Script:DistroName（使用 wsl -d $Script:DistroName -u root -- /bin/sh -lc true）..."
+        & wsl -d $Script:DistroName -u root -- /bin/sh -lc "true" 2>&1 | ForEach-Object { Write-Log $_ }
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "wsl 初始化 $Script:DistroName 失敗 (exit code: $LASTEXITCODE)" "Error"
+            return $false
         }
 
         Write-Log "$Script:DistroName 安裝並初始化完成" "Success"
