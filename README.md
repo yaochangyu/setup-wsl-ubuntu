@@ -25,6 +25,15 @@
 
 ## 快速開始
 
+### 推薦流程
+
+一般情況下，只要照下面兩步執行即可：
+
+1. 先用 `setup-wsl2-features.ps1` 啟用 WSL2 功能
+2. 再用 `setup-ubuntu.ps1` 安裝 Ubuntu，並自動接續安裝開發工具
+
+只有在開發工具安裝中斷，或你想單獨重跑工具安裝時，才需要另外執行 `install-linux-tools.ps1` 或 `install-linux-tools.sh`。
+
 ### 步驟 1：啟用 WSL2 功能（需要管理員）
 
 以**系統管理員身分**開啟 PowerShell，執行：
@@ -47,7 +56,7 @@ cd D:\lab\setup-wsl-ubuntu
 
 預設安裝 Ubuntu 24.04，帳號為 `yao / changeme`。
 
-`setup-ubuntu.ps1` 完成 Ubuntu 安裝後，若同目錄存在 `install-linux-tools.ps1`，會自動接續安裝開發工具。
+`setup-ubuntu.ps1` 完成 Ubuntu 安裝後，若同目錄存在 `install-linux-tools.ps1`，會自動接續安裝開發工具，因此多數情況不需要再手動執行下一步。
 
 如需直接指定：
 
@@ -63,9 +72,11 @@ cd D:\lab\setup-wsl-ubuntu
 
 ### 步驟 3：單獨執行或重跑開發工具安裝（可選）
 
-一般情況下不需要手動執行這一步，因為 `setup-ubuntu.ps1` 已經會自動呼叫 `install-linux-tools.ps1`。
+適用情境：
 
-若你只想重跑開發工具安裝，或前一次安裝中斷，可使用以下方式。
+- 前一次工具安裝中斷
+- 只想重跑開發工具安裝，不重裝 Ubuntu
+- 想直接從 WSL 內執行 Linux 安裝腳本
 
 #### 方法 A：使用 PowerShell
 
@@ -157,10 +168,10 @@ WSL_PASSWORD=your_password
 ### 使用代理
 
 ```powershell
-# 從頭執行 Ubuntu 安裝，並在完成後自動接續安裝開發工具
+# 推薦：從頭執行 Ubuntu 安裝，並在完成後自動接續安裝開發工具
 .\setup-ubuntu.ps1 -Proxy http://proxy.example.com:8080
 
-# 只重跑開發工具安裝
+# 僅重跑開發工具安裝
 .\install-linux-tools.ps1 -Proxy http://proxy.example.com:8080
 ```
 
@@ -297,6 +308,15 @@ sudo ./uninstall.sh
 docker --version
 docker run hello-world
 ```
+
+如果你是在 Windows 端使用 Docker CLI 連到 WSL 內的 Docker Engine，驗證前建議先確認連線是否正常：
+
+```powershell
+# 先重新載入 WSL
+wsl --shutdown
+```
+
+若仍無法連線，再重新開機後測試。這通常是 WSL 網路、Docker daemon 設定或 context 狀態尚未完全重新載入所致。
 
 ### 檢查 .NET
 
