@@ -30,7 +30,8 @@
 
 .NOTES
     執行前請確認已完成 setup-wsl2-features.ps1（需要管理員）
-    完成後請執行 install-linux-tools.ps1 安裝開發工具
+    安裝 Ubuntu 完成後，若同目錄存在 install-linux-tools.ps1，會自動接續安裝開發工具
+    如需單獨重跑開發工具安裝，可手動執行 install-linux-tools.ps1
 #>
 
 [CmdletBinding()]

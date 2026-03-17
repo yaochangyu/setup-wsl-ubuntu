@@ -47,6 +47,8 @@ cd D:\lab\setup-wsl-ubuntu
 
 預設安裝 Ubuntu 24.04，帳號為 `yao / changeme`。
 
+`setup-ubuntu.ps1` 完成 Ubuntu 安裝後，若同目錄存在 `install-linux-tools.ps1`，會自動接續安裝開發工具。
+
 如需直接指定：
 
 ```powershell
@@ -59,9 +61,13 @@ cd D:\lab\setup-wsl-ubuntu
 # 或透過 .env 檔案設定（詳見「環境設定檔」章節）
 ```
 
-### 步驟 3：安裝開發工具
+### 步驟 3：單獨執行或重跑開發工具安裝（可選）
 
-#### 方法 A：使用 PowerShell（建議）
+一般情況下不需要手動執行這一步，因為 `setup-ubuntu.ps1` 已經會自動呼叫 `install-linux-tools.ps1`。
+
+若你只想重跑開發工具安裝，或前一次安裝中斷，可使用以下方式。
+
+#### 方法 A：使用 PowerShell
 
 ```powershell
 .\install-linux-tools.ps1
@@ -151,7 +157,10 @@ WSL_PASSWORD=your_password
 ### 使用代理
 
 ```powershell
-# PowerShell
+# 從頭執行 Ubuntu 安裝，並在完成後自動接續安裝開發工具
+.\setup-ubuntu.ps1 -Proxy http://proxy.example.com:8080
+
+# 只重跑開發工具安裝
 .\install-linux-tools.ps1 -Proxy http://proxy.example.com:8080
 ```
 
@@ -315,8 +324,8 @@ pip --version
 ```
 setup-wsl-ubuntu/
 ├── setup-wsl2-features.ps1     # 步驟 1：啟用 WSL2 Windows 功能（需管理員）
-├── setup-ubuntu.ps1           # 步驟 2：安裝 Ubuntu + 建立使用者
-├── install-linux-tools.ps1     # 步驟 3：從 Windows 呼叫開發工具安裝（PS1 包裝）
+├── setup-ubuntu.ps1            # 步驟 2：安裝 Ubuntu + 建立使用者，完成後自動接續安裝工具
+├── install-linux-tools.ps1     # 開發工具安裝入口（可由 setup-ubuntu 自動呼叫，也可手動重跑）
 ├── install-linux-tools.sh      # 步驟 3：在 Linux 內執行的開發工具安裝腳本
 ├── .env.example                # 環境設定範本（複製為 .env 後填入實際值）
 ├── README.md                   # 本文檔
