@@ -532,8 +532,8 @@ install_docker() {
 
     print_separator
 
-    # 驗證安裝
-    verify_docker_installation
+    # 驗證安裝（驗證失敗不中止腳本，僅提示警告）
+    verify_docker_installation || true
 
     # 顯示 Docker 資訊
     show_docker_info

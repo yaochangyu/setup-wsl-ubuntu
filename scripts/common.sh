@@ -743,12 +743,12 @@ install_oh_my_zsh() {
 install_cli_tools() {
     print_header "安裝常用 CLI 工具"
 
-    install_fzf
-    install_yq
-    install_glab
-    setup_bat_symlink
-    install_oh_my_zsh
-    install_better_rm
+    install_fzf || true
+    install_yq || true
+    install_glab || true
+    setup_bat_symlink || true
+    install_oh_my_zsh || true
+    install_better_rm || true
 
     # 驗證安裝
     local tools=("yq" "glab" "starship")
@@ -769,10 +769,10 @@ install_cli_tools() {
 install_ai_cli_tools() {
     print_header "安裝 AI CLI 工具"
 
-    install_claude_code
-    install_codex_cli
-    install_gemini_cli
-    install_copilot_cli
+    install_claude_code || true
+    install_codex_cli || true
+    install_gemini_cli || true
+    install_copilot_cli || true
 
     # 驗證安裝
     local tools=("claude" "codex" "gemini" "copilot")
