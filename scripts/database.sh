@@ -32,16 +32,26 @@ install_database_tools() {
     else
         info "安裝 MSSQL 客戶端工具..."
 
-        # 若 microsoft-prod.list 已由 dotnet 模組建立，直接複用，否則手動新增
-        if [[ ! -f /etc/apt/sources.list.d/microsoft-prod.list ]]; then
+        # 新增 Microsoft APT 來源（使用 signed-by 方式，相容 Ubuntu 24.04+）
+        local ms_keyring="/etc/apt/keyrings/microsoft.gpg"
+        if [[ ! -f "${ms_keyring}" ]]; then
+            install -m 0755 -d /etc/apt/keyrings
             curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | \
-                gpg --dearmor -o /etc/apt/trusted.gpg.d/microsoft.gpg >> "${LOG_FILE}" 2>&1
-            curl -fsSL "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list" \
-                -o /etc/apt/sources.list.d/microsoft-prod.list >> "${LOG_FILE}" 2>&1
+                gpg --batch --no-tty --yes --dearmor -o "${ms_keyring}" >> "${LOG_FILE}" 2>&1
+            chmod a+r "${ms_keyring}"
         fi
 
-        # 移除舊的重複來源（msprod.list）
+        local ms_list="/etc/apt/sources.list.d/microsoft-prod.list"
+        if [[ ! -f "${ms_list}" ]]; then
+            local ubuntu_version
+            ubuntu_version=$(lsb_release -rs)
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=${ms_keyring}] https://packages.microsoft.com/ubuntu/${ubuntu_version}/prod $(lsb_release -cs) main" \
+                | tee "${ms_list}" > /dev/null
+        fi
+
+        # 移除舊的重複來源與過時金鑰
         rm -f /etc/apt/sources.list.d/msprod.list
+        rm -f /etc/apt/trusted.gpg.d/microsoft.gpg
 
         apt-get update -qq >> "${LOG_FILE}" 2>&1
 
