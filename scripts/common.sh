@@ -590,6 +590,110 @@ install_yq() {
     chmod +x /usr/local/bin/yq
 }
 
+# 安裝 glab（GitLab CLI，從官方 APT 來源安裝）
+install_glab() {
+    if command -v glab &> /dev/null; then
+        info "glab 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 glab..."
+
+    # 新增 GitLab 官方 APT 來源
+    curl -fsSL "https://gitlab.com/gitlab-org/cli/-/raw/main/scripts/install_linux.sh" | sh >> "${LOG_FILE}" 2>&1
+
+    if command -v glab &> /dev/null; then
+        success "glab $(glab version 2>/dev/null | head -n1) 安裝完成"
+    else
+        warning "glab 安裝失敗"
+        return 1
+    fi
+}
+
+# npm 全域安裝輔助函式（透過 nvm 以實際使用者身分執行）
+# 用法：npm_global_install "套件名稱" "指令名稱"
+# 回傳：0=成功, 1=npm 不可用, 2=安裝失敗
+npm_global_install() {
+    local package_name="$1"
+    local command_name="$2"
+
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home
+    user_home=$(eval echo ~"${actual_user}")
+    local nvm_sh="${user_home}/.nvm/nvm.sh"
+
+    if [[ ! -s "${nvm_sh}" ]]; then
+        warning "${package_name} 需要 Node.js（nvm），請先安裝 Node.js 後再重新執行"
+        return 1
+    fi
+
+    if sudo -u "${actual_user}" bash -c "source '${nvm_sh}' && npm list -g '${package_name}'" &> /dev/null; then
+        info "${package_name} 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 ${package_name}..."
+    if sudo -u "${actual_user}" bash -c "source '${nvm_sh}' && npm install -g '${package_name}'" >> "${LOG_FILE}" 2>&1; then
+        success "${package_name} 安裝完成"
+        return 0
+    else
+        warning "${package_name} 安裝失敗"
+        return 2
+    fi
+}
+
+# 安裝 Codex CLI（OpenAI）
+install_codex_cli() {
+    if command -v codex &> /dev/null; then
+        info "Codex CLI 已安裝，跳過"
+        return 0
+    fi
+    npm_global_install "@openai/codex" "codex"
+}
+
+# 安裝 Gemini CLI（Google）
+install_gemini_cli() {
+    if command -v gemini &> /dev/null; then
+        info "Gemini CLI 已安裝，跳過"
+        return 0
+    fi
+    npm_global_install "@google/gemini-cli" "gemini"
+}
+
+# 安裝 GitHub Copilot CLI
+install_copilot_cli() {
+    if command -v copilot &> /dev/null; then
+        info "GitHub Copilot CLI 已安裝，跳過"
+        return 0
+    fi
+    npm_global_install "@github/copilot" "copilot"
+}
+
+# 安裝 Claude Code（Anthropic 原生安裝器，不需 npm）
+install_claude_code() {
+    if command -v claude &> /dev/null; then
+        info "Claude Code 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 Claude Code..."
+
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home
+    user_home=$(eval echo ~"${actual_user}")
+
+    sudo -u "${actual_user}" bash -c \
+        'curl -fsSL https://claude.ai/install.sh | bash' \
+        >> "${LOG_FILE}" 2>&1
+
+    if sudo -u "${actual_user}" bash -c 'command -v claude' &> /dev/null; then
+        success "Claude Code 安裝完成"
+    else
+        warning "Claude Code 安裝失敗"
+        return 1
+    fi
+}
+
 # 設定 bat 符號連結（Ubuntu 套件名為 batcat）
 setup_bat_symlink() {
     if [[ -f /usr/bin/batcat ]] && [[ ! -f /usr/local/bin/bat ]]; then
@@ -618,12 +722,13 @@ install_cli_tools() {
 
     install_fzf
     install_yq
+    install_glab
     setup_bat_symlink
     install_oh_my_zsh
     install_better_rm
 
     # 驗證安裝
-    local tools=("yq" "starship")
+    local tools=("yq" "glab" "starship")
     info "已安裝的工具："
     for tool in "${tools[@]}"; do
         if command -v "${tool}" &> /dev/null; then
@@ -635,6 +740,30 @@ install_cli_tools() {
 
     success "常用 CLI 工具安裝完成"
     INSTALL_STATUS["cli_tools"]="success"
+}
+
+# 安裝 AI CLI 工具（需在 Node.js 安裝之後執行）
+install_ai_cli_tools() {
+    print_header "安裝 AI CLI 工具"
+
+    install_claude_code
+    install_codex_cli
+    install_gemini_cli
+    install_copilot_cli
+
+    # 驗證安裝
+    local tools=("claude" "codex" "gemini" "copilot")
+    info "已安裝的 AI CLI 工具："
+    for tool in "${tools[@]}"; do
+        if command -v "${tool}" &> /dev/null; then
+            echo "  ✓ ${tool}" | tee -a "${LOG_FILE}"
+        else
+            echo "  ✗ ${tool}" | tee -a "${LOG_FILE}"
+        fi
+    done
+
+    success "AI CLI 工具安裝完成"
+    INSTALL_STATUS["ai_cli_tools"]="success"
 }
 
 # 主要基礎設定函式
@@ -722,7 +851,14 @@ export -f show_system_info
 export -f setup_system_optimization
 export -f setup_base_system
 export -f install_yq
+export -f install_glab
+export -f npm_global_install
+export -f install_claude_code
+export -f install_codex_cli
+export -f install_gemini_cli
+export -f install_copilot_cli
 export -f setup_bat_symlink
 export -f install_oh_my_zsh
 export -f install_better_rm
 export -f install_cli_tools
+export -f install_ai_cli_tools

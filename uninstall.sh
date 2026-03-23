@@ -34,6 +34,7 @@ echo "  - Python (pyenv)"
 echo "  - Go"
 echo "  - Rust"
 echo "  - DevOps 工具 (kubectl, helm, terraform, az)"
+echo "  - AI CLI 工具 (claude, codex, gemini, copilot)"
 echo "  - CLI 工具"
 echo ""
 echo -e "${COLOR_YELLOW}此操作無法復原！${COLOR_RESET}"
@@ -108,9 +109,20 @@ apt-get remove -y azure-cli >> "${LOG_FILE}" 2>&1 || true
 
 # 移除 CLI 工具
 echo "移除 CLI 工具..."
-apt-get remove -y jq bat ripgrep fzf htop tmux tree zsh >> "${LOG_FILE}" 2>&1 || true
+apt-get remove -y jq bat ripgrep fzf htop tmux tree zsh glab >> "${LOG_FILE}" 2>&1 || true
 rm -f /usr/local/bin/yq
 rm -f /usr/local/bin/bat
+
+# 移除 AI CLI 工具
+echo "移除 AI CLI 工具..."
+# Claude Code（原生安裝器）
+if command -v claude &> /dev/null; then
+    rm -f "$(which claude)" 2>/dev/null || true
+fi
+# npm 全域套件（Codex、Gemini、Copilot）
+if [[ "${actual_user}" != "root" ]] && [[ -s "${user_home}/.nvm/nvm.sh" ]]; then
+    sudo -u "${actual_user}" bash -c "source '${user_home}/.nvm/nvm.sh' && npm uninstall -g @openai/codex @google/gemini-cli @github/copilot" >> "${LOG_FILE}" 2>&1 || true
+fi
 
 # 移除資料庫工具
 echo "移除資料庫工具..."

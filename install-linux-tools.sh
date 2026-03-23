@@ -545,7 +545,7 @@ main() {
     print_separator
 
     # 計算總步驟數
-    TOTAL_STEPS=12
+    TOTAL_STEPS=13
     CURRENT_STEP=0
 
     # 安裝工具
@@ -572,6 +572,11 @@ main() {
     update_progress "安裝 Node.js..."
     if declare -f install_nodejs &> /dev/null; then
         install_nodejs
+    fi
+
+    update_progress "安裝 AI CLI 工具..."
+    if declare -f install_ai_cli_tools &> /dev/null; then
+        install_ai_cli_tools
     fi
 
     update_progress "安裝 Python..."
