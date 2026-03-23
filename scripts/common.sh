@@ -590,7 +590,7 @@ install_yq() {
     chmod +x /usr/local/bin/yq
 }
 
-# 安裝 glab（GitLab CLI，從官方 APT 來源安裝）
+# 安裝 glab（GitLab CLI，從 GitHub Releases 下載二進位檔）
 install_glab() {
     if command -v glab &> /dev/null; then
         info "glab 已安裝，跳過"
@@ -599,8 +599,31 @@ install_glab() {
 
     info "安裝 glab..."
 
-    # 新增 GitLab 官方 APT 來源
-    curl -fsSL "https://gitlab.com/gitlab-org/cli/-/raw/main/scripts/install_linux.sh" | sh >> "${LOG_FILE}" 2>&1
+    local arch
+    arch=$(uname -m)
+    local glab_arch="amd64"
+    [[ "${arch}" == "aarch64" ]] && glab_arch="arm64"
+
+    local latest_version
+    latest_version=$(curl -fsSL "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/releases" \
+        | grep -o '"tag_name":"v[^"]*"' | head -1 | sed 's/.*"v\([^"]*\)".*/\1/')
+
+    if [[ -z "${latest_version}" ]]; then
+        warning "無法取得 glab 最新版本，跳過安裝"
+        return 1
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tarball="${tmp_dir}/glab.tar.gz"
+
+    curl -fsSL -o "${tarball}" \
+        "https://gitlab.com/gitlab-org/cli/-/releases/v${latest_version}/downloads/glab_${latest_version}_linux_${glab_arch}.tar.gz" \
+        >> "${LOG_FILE}" 2>&1
+
+    tar -xzf "${tarball}" -C "${tmp_dir}" >> "${LOG_FILE}" 2>&1
+    install -o root -g root -m 0755 "${tmp_dir}/bin/glab" /usr/local/bin/glab
+    rm -rf "${tmp_dir}"
 
     if command -v glab &> /dev/null; then
         success "glab $(glab version 2>/dev/null | head -n1) 安裝完成"
