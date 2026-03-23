@@ -667,28 +667,16 @@ npm_global_install() {
 
 # 安裝 Codex CLI（OpenAI）
 install_codex_cli() {
-    if command -v codex &> /dev/null; then
-        info "Codex CLI 已安裝，跳過"
-        return 0
-    fi
     npm_global_install "@openai/codex" "codex"
 }
 
 # 安裝 Gemini CLI（Google）
 install_gemini_cli() {
-    if command -v gemini &> /dev/null; then
-        info "Gemini CLI 已安裝，跳過"
-        return 0
-    fi
     npm_global_install "@google/gemini-cli" "gemini"
 }
 
 # 安裝 GitHub Copilot CLI
 install_copilot_cli() {
-    if command -v copilot &> /dev/null; then
-        info "GitHub Copilot CLI 已安裝，跳過"
-        return 0
-    fi
     npm_global_install "@github/copilot" "copilot"
 }
 
@@ -780,20 +768,30 @@ install_ai_cli_tools() {
     install_gemini_cli || true
     install_copilot_cli || true
 
-    # 驗證安裝（AI CLI 工具安裝在使用者路徑，需透過使用者環境檢查）
+    # 驗證安裝
     local actual_user="${SUDO_USER:-$USER}"
     local user_home
     user_home=$(eval echo ~"${actual_user}")
     local nvm_sh="${user_home}/.nvm/nvm.sh"
-    local user_path="${user_home}/.local/bin"
 
-    local tools=("claude" "codex" "gemini" "copilot")
     info "已安裝的 AI CLI 工具："
-    for tool in "${tools[@]}"; do
-        if sudo -u "${actual_user}" bash -c "export PATH='${user_path}:\$PATH'; [ -s '${nvm_sh}' ] && source '${nvm_sh}'; command -v '${tool}'" &> /dev/null; then
-            echo "  ✓ ${tool}" | tee -a "${LOG_FILE}"
+
+    # Claude Code（原生安裝器，檢查檔案是否存在）
+    if [[ -x "${user_home}/.local/bin/claude" ]]; then
+        echo "  ✓ claude" | tee -a "${LOG_FILE}"
+    else
+        echo "  ✗ claude" | tee -a "${LOG_FILE}"
+    fi
+
+    # npm 全域套件（使用 npm list -g 檢查，與安裝時的跳過檢查一致）
+    local npm_tools=("@openai/codex:codex" "@google/gemini-cli:gemini" "@github/copilot:copilot")
+    for entry in "${npm_tools[@]}"; do
+        local pkg="${entry%%:*}"
+        local name="${entry##*:}"
+        if sudo -u "${actual_user}" bash -c "source '${nvm_sh}' && npm list -g '${pkg}'" &> /dev/null; then
+            echo "  ✓ ${name}" | tee -a "${LOG_FILE}"
         else
-            echo "  ✗ ${tool}" | tee -a "${LOG_FILE}"
+            echo "  ✗ ${name}" | tee -a "${LOG_FILE}"
         fi
     done
 

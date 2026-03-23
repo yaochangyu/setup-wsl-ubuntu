@@ -525,7 +525,7 @@ main() {
     # 系統檢查
     check_root
     check_os
-    check_network
+    check_network || true
     check_disk_space
 
     print_separator

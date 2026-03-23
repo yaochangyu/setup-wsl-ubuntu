@@ -58,6 +58,12 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+actual_user="${SUDO_USER:-$USER}"
+user_home=""
+if [[ "${actual_user}" != "root" ]]; then
+    user_home=$(eval echo ~${actual_user})
+fi
+
 # 移除 Docker
 echo "移除 Docker..."
 apt-get remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >> "${LOG_FILE}" 2>&1 || true
@@ -73,11 +79,20 @@ apt-get remove -y 'dotnet-*' >> "${LOG_FILE}" 2>&1 || true
 apt-get remove -y 'aspnetcore-*' >> "${LOG_FILE}" 2>&1 || true
 rm -f /etc/apt/sources.list.d/microsoft-prod.list
 
+# 移除 AI CLI 工具（必須在 nvm 移除前執行，否則 npm uninstall 無法使用）
+echo "移除 AI CLI 工具..."
+# Claude Code（原生安裝器）
+if [[ -x "${user_home}/.local/bin/claude" ]]; then
+    rm -f "${user_home}/.local/bin/claude" 2>/dev/null || true
+fi
+# npm 全域套件（Codex、Gemini、Copilot）
+if [[ "${actual_user}" != "root" ]] && [[ -s "${user_home}/.nvm/nvm.sh" ]]; then
+    sudo -u "${actual_user}" bash -c "source '${user_home}/.nvm/nvm.sh' && npm uninstall -g @openai/codex @google/gemini-cli @github/copilot" >> "${LOG_FILE}" 2>&1 || true
+fi
+
 # 移除 nvm 和 Node.js
 echo "移除 Node.js 和 nvm..."
-local actual_user="${SUDO_USER:-$USER}"
 if [[ "${actual_user}" != "root" ]]; then
-    local user_home=$(eval echo ~${actual_user})
     rm -rf "${user_home}/.nvm"
     sed -i '/NVM_DIR/d' "${user_home}/.bashrc" 2>/dev/null || true
 fi
@@ -112,17 +127,8 @@ echo "移除 CLI 工具..."
 apt-get remove -y jq bat ripgrep fzf htop tmux tree zsh glab >> "${LOG_FILE}" 2>&1 || true
 rm -f /usr/local/bin/yq
 rm -f /usr/local/bin/bat
-
-# 移除 AI CLI 工具
-echo "移除 AI CLI 工具..."
-# Claude Code（原生安裝器）
-if command -v claude &> /dev/null; then
-    rm -f "$(which claude)" 2>/dev/null || true
-fi
-# npm 全域套件（Codex、Gemini、Copilot）
-if [[ "${actual_user}" != "root" ]] && [[ -s "${user_home}/.nvm/nvm.sh" ]]; then
-    sudo -u "${actual_user}" bash -c "source '${user_home}/.nvm/nvm.sh' && npm uninstall -g @openai/codex @google/gemini-cli @github/copilot" >> "${LOG_FILE}" 2>&1 || true
-fi
+rm -f /usr/local/bin/glab
+rm -f /usr/local/bin/fzf
 
 # 移除資料庫工具
 echo "移除資料庫工具..."
@@ -134,7 +140,7 @@ apt-get autoremove -y >> "${LOG_FILE}" 2>&1
 apt-get autoclean >> "${LOG_FILE}" 2>&1
 
 echo ""
-echo "========================================
+echo "========================================"
 echo "卸載完成"
 echo "========================================"
 echo ""
