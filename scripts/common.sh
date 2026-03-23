@@ -709,7 +709,13 @@ install_claude_code() {
         'curl -fsSL https://claude.ai/install.sh | bash' \
         >> "${LOG_FILE}" 2>&1
 
-    if sudo -u "${actual_user}" bash -c 'command -v claude' &> /dev/null; then
+    # 安裝器將 claude 放在 ~/.local/bin，確保加入 PATH
+    local claude_bin="${user_home}/.local/bin"
+    if [[ -x "${claude_bin}/claude" ]]; then
+        if ! grep -q '\.local/bin' "${user_home}/.bashrc" 2>/dev/null; then
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${user_home}/.bashrc"
+            info "已將 ~/.local/bin 加入 ~/.bashrc PATH"
+        fi
         success "Claude Code 安裝完成"
     else
         warning "Claude Code 安裝失敗"
@@ -774,11 +780,17 @@ install_ai_cli_tools() {
     install_gemini_cli || true
     install_copilot_cli || true
 
-    # 驗證安裝
+    # 驗證安裝（AI CLI 工具安裝在使用者路徑，需透過使用者環境檢查）
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home
+    user_home=$(eval echo ~"${actual_user}")
+    local nvm_sh="${user_home}/.nvm/nvm.sh"
+    local user_path="${user_home}/.local/bin"
+
     local tools=("claude" "codex" "gemini" "copilot")
     info "已安裝的 AI CLI 工具："
     for tool in "${tools[@]}"; do
-        if command -v "${tool}" &> /dev/null; then
+        if sudo -u "${actual_user}" bash -c "export PATH='${user_path}:\$PATH'; [ -s '${nvm_sh}' ] && source '${nvm_sh}'; command -v '${tool}'" &> /dev/null; then
             echo "  ✓ ${tool}" | tee -a "${LOG_FILE}"
         else
             echo "  ✗ ${tool}" | tee -a "${LOG_FILE}"
