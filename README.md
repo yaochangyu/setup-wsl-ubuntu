@@ -136,11 +136,18 @@ WSL_PASSWORD=your_password
 - ✅ Terraform - 基礎設施即程式碼
 - ✅ Azure CLI - Azure 命令列工具
 
+### AI CLI 工具
+- ✅ **Claude Code** - Anthropic CLI（原生安裝器）
+- ✅ **Codex CLI** - OpenAI CLI
+- ✅ **Gemini CLI** - Google CLI
+- ✅ **GitHub Copilot CLI** - GitHub AI 助手
+
 ### CLI 工具
 - ✅ jq, yq - JSON/YAML 處理
 - ✅ bat - 增強的 cat
 - ✅ ripgrep - 快速搜尋
 - ✅ fzf - 模糊搜尋
+- ✅ glab - GitLab CLI
 - ✅ htop - 系統監控
 - ✅ tmux - 終端多工
 - ✅ zsh + oh-my-zsh - 強化 Shell
@@ -214,6 +221,22 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
   --help             顯示說明訊息
 ```
 
+## 版本控制
+
+各工具版本可透過環境變數指定，未設定時自動取得最新版本：
+
+| 環境變數 | 預設值 | 說明 |
+|---------|--------|------|
+| `DOTNET_VERSIONS` | `5.0 6.0 7.0 8.0 9.0 10.0` | .NET SDK 版本（空白分隔） |
+| `NVM_VERSION` | 自動取得最新版 | nvm 版本（例: `v0.40.4`） |
+| `PYTHON_VERSION` | `3.12` | pyenv 安裝的 Python 版本 |
+| `GO_VERSION` | 自動取得最新版 | Go 版本（例: `1.26.1`） |
+
+```bash
+# 範例：指定特定版本
+sudo GO_VERSION=1.23.0 PYTHON_VERSION=3.11 ./install-linux-tools.sh
+```
+
 ## 日誌與除錯
 
 ### 日誌位置
@@ -221,6 +244,8 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 - **發行版安裝日誌**: `logs/ubuntu-setup-YYYYMMDD-HHMMSS.log`
 - **Linux 工具日誌（PS1）**: `logs/linux-tools-YYYYMMDD-HHMMSS.log`
 - **Linux 工具日誌（sh）**: `logs/install-YYYYMMDD-HHMMSS.log`
+- **驗證日誌**: `logs/verify-YYYYMMDD-HHMMSS.log`
+- **卸載日誌**: `logs/uninstall-YYYYMMDD-HHMMSS.log`
 
 ### 查看日誌
 
@@ -302,41 +327,38 @@ sudo ./uninstall.sh
 
 ## 驗證安裝
 
-### 檢查 Docker
+使用內建的驗證腳本，一次檢查所有工具安裝狀態：
 
 ```bash
-docker --version
-docker run hello-world
+# 檢查所有工具
+./verify.sh
+
+# 檢查並自動重裝失敗項目
+sudo ./verify.sh --fix
 ```
 
-如果你是在 Windows 端使用 Docker CLI 連到 WSL 內的 Docker Engine，驗證前建議先確認連線是否正常：
+輸出範例：
 
-```powershell
-# 先重新載入 WSL
-wsl --shutdown
 ```
+── 系統工具 ──
+  ✓ git
+  ✓ curl
+  ...
 
-若仍無法連線，再重新開機後測試。這通常是 WSL 網路、Docker daemon 設定或 context 狀態尚未完全重新載入所致。
+── AI CLI 工具 ──
+  ✓ claude
+  ✓ codex
+  ✓ gemini
+  ✓ copilot
 
-### 檢查 .NET
+========================================
+驗證結果
+========================================
 
-```bash
-dotnet --version
-dotnet --list-sdks
-```
+  通過: 42
+  失敗: 0
 
-### 檢查 Node.js
-
-```bash
-node --version
-npm --version
-```
-
-### 檢查 Python
-
-```bash
-python --version
-pip --version
+所有工具皆已正確安裝！
 ```
 
 ## 檔案結構
@@ -347,21 +369,26 @@ setup-wsl-ubuntu/
 ├── setup-ubuntu.ps1            # 步驟 2：安裝 Ubuntu + 建立使用者，完成後自動接續安裝工具
 ├── install-linux-tools.ps1     # 開發工具安裝入口（可由 setup-ubuntu 自動呼叫，也可手動重跑）
 ├── install-linux-tools.sh      # 步驟 3：在 Linux 內執行的開發工具安裝腳本
+├── verify.sh                   # 工具安裝驗證（支援 --fix 自動重裝）
+├── uninstall.sh                # 卸載所有已安裝的開發工具
+├── config.example.sh           # 配置檔範例
 ├── .env.example                # 環境設定範本（複製為 .env 後填入實際值）
 ├── README.md                   # 本文檔
+├── tree.md                     # 專案結構
 ├── logs/                       # 安裝日誌
 └── scripts/                    # 模組化腳本
-    ├── common.sh               # 基礎系統、Bash 環境、CLI 工具
+    ├── common.sh               # 基礎系統、Bash 環境、CLI 工具、AI CLI 工具
     ├── docker.sh               # Docker 安裝
     ├── dotnet.sh               # .NET SDK 安裝
-    ├── nodejs.sh               # Node.js 安裝
-    ├── python.sh               # Python 安裝
+    ├── nodejs.sh               # Node.js + nvm 安裝
+    ├── python.sh               # Python + pyenv 安裝
     ├── go.sh                   # Go 安裝
     ├── rust.sh                 # Rust 安裝
     ├── vscode.sh               # VS Code Server
+    ├── vscode-troubleshoot.sh  # VS Code Server 故障排除
     ├── vim.sh                  # Vim 配置
-    ├── database.sh             # 資料庫工具
-    └── devops.sh               # DevOps 工具
+    ├── database.sh             # 資料庫工具（psql, sqlcmd）
+    └── devops.sh               # DevOps 工具（kubectl, helm, terraform, az）
 ```
 
 ## 常見問題 (FAQ)
@@ -404,4 +431,4 @@ MIT License
 
 ---
 
-**最後更新：** 2026-03-03
+**最後更新：** 2026-03-24
