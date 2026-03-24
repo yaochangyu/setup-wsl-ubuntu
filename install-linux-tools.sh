@@ -407,43 +407,19 @@ load_modules() {
 # 驗證函式
 ###############################################################################
 
-# 驗證安裝
+# 驗證安裝（呼叫 verify.sh）
 verify_installation() {
     if [[ "${SKIP_VERIFY}" == "true" ]]; then
         info "跳過安裝驗證"
         return 0
     fi
 
-    print_header "驗證安裝"
-
-    local failed_count=0
-
-    # 驗證 Docker
-    if [[ "${INSTALL_STATUS[docker]}" == "success" ]]; then
-        if command -v docker &> /dev/null; then
-            success "Docker: $(docker --version)"
-        else
-            error "Docker 驗證失敗"
-            ((failed_count++)) || true
-        fi
-    fi
-
-    # 驗證 .NET
-    if [[ "${INSTALL_STATUS[dotnet]}" == "success" ]]; then
-        if command -v dotnet &> /dev/null; then
-            success ".NET: $(dotnet --version)"
-        else
-            error ".NET 驗證失敗"
-            ((failed_count++)) || true
-        fi
-    fi
-
-    if [[ $failed_count -eq 0 ]]; then
-        success "所有工具驗證通過"
-        return 0
+    local verify_script="${SCRIPT_DIR}/verify.sh"
+    if [[ -x "${verify_script}" ]]; then
+        info "執行安裝驗證..."
+        bash "${verify_script}" || true
     else
-        warning "有 ${failed_count} 個工具驗證失敗"
-        return 1
+        warning "找不到驗證腳本: ${verify_script}"
     fi
 }
 
@@ -627,8 +603,7 @@ main() {
     echo ""
     info "後續步驟："
     info "  1. 重新登入或執行: newgrp docker"
-    info "  2. 驗證 Docker: docker run hello-world"
-    info "  3. 驗證 .NET: dotnet --list-sdks"
+    info "  2. 若有失敗項目，執行: sudo ./verify.sh --fix"
     echo ""
 }
 
