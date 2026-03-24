@@ -7,7 +7,7 @@
 ###############################################################################
 # 環境變數（未設定時使用預設值；可由外部環境或 config.sh 覆蓋）
 ###############################################################################
-: "${NVM_VERSION:=v0.39.7}"   # nvm 版本
+: "${NVM_VERSION:=}"   # nvm 版本（留空則自動取得最新版）
 # 由執行環境提供（唯讀）：
 # SUDO_USER - 實際非 root 使用者（由 install-linux-tools.ps1 export 設定）
 
@@ -26,7 +26,16 @@ install_nodejs() {
     if [[ -d "${user_home}/.nvm" ]]; then
         info "nvm 已安裝，跳過"
     else
-        info "下載並安裝 nvm..."
+        # 動態取得最新版本（若未指定）
+        if [[ -z "${NVM_VERSION}" ]]; then
+            NVM_VERSION=$(curl -fsSL https://api.github.com/repos/nvm-sh/nvm/releases/latest | grep '"tag_name"' | sed 's/.*"\(v[^"]*\)".*/\1/')
+            if [[ -z "${NVM_VERSION}" ]]; then
+                NVM_VERSION="v0.39.7"
+                warning "無法取得 nvm 最新版本，使用後備版本 ${NVM_VERSION}"
+            fi
+        fi
+
+        info "下載並安裝 nvm ${NVM_VERSION}..."
         sudo -u "${actual_user}" bash -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | bash" >> "${LOG_FILE}" 2>&1
 
         if [[ ! -d "${user_home}/.nvm" ]]; then
