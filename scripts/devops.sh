@@ -12,9 +12,16 @@ install_devops_tools() {
         info "kubectl 已安裝，跳過"
     else
         info "安裝 kubectl..."
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" >> "${LOG_FILE}" 2>&1
-        install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-        rm -f kubectl
+        local arch
+        arch=$(dpkg --print-architecture)
+        local kubectl_version
+        kubectl_version=$(curl -fsSL https://dl.k8s.io/release/stable.txt)
+        if curl -fsSL -o /tmp/kubectl "https://dl.k8s.io/release/${kubectl_version}/bin/linux/${arch}/kubectl" >> "${LOG_FILE}" 2>&1; then
+            install -o root -g root -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+            rm -f /tmp/kubectl
+        else
+            warning "kubectl 下載失敗"
+        fi
     fi
     command -v kubectl &> /dev/null && success "kubectl: $(kubectl version --client 2>/dev/null | grep 'Client Version' | head -n1)"
 
