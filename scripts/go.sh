@@ -7,6 +7,7 @@
 ###############################################################################
 # 環境變數（未設定時使用預設值；可由外部環境或 config.sh 覆蓋）
 ###############################################################################
+: "${GO_VERSION:=}"                    # Go 版本（留空則自動取得最新版）
 : "${GO_FALLBACK_VERSION:=1.24.1}"   # 無法取得最新版本時的後備版本
 # 由執行環境提供（唯讀）：
 # SUDO_USER - 實際非 root 使用者（由 install-linux-tools.ps1 export 設定）
@@ -14,13 +15,15 @@
 install_go() {
     print_header "安裝 Go"
 
-    # 從官方 API 取得最新穩定版本號（例如: 1.24.1）
-    info "取得 Go 最新穩定版本..."
-    local go_version
-    go_version=$(curl -fsSL "https://go.dev/VERSION?m=text" | head -1 | sed 's/^go//')
+    local go_version="${GO_VERSION}"
     if [[ -z "${go_version}" ]]; then
-        warning "無法取得最新版本，使用後備版本 ${GO_FALLBACK_VERSION}"
-        go_version="${GO_FALLBACK_VERSION}"
+        # 從官方 API 取得最新穩定版本號（例如: 1.24.1）
+        info "取得 Go 最新穩定版本..."
+        go_version=$(curl -fsSL "https://go.dev/VERSION?m=text" | head -1 | sed 's/^go//')
+        if [[ -z "${go_version}" ]]; then
+            warning "無法取得最新版本，使用後備版本 ${GO_FALLBACK_VERSION}"
+            go_version="${GO_FALLBACK_VERSION}"
+        fi
     fi
     info "目標版本: Go ${go_version}"
 
