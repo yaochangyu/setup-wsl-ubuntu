@@ -153,6 +153,61 @@ check_cli_tools() {
     else
         check_fail "ripgrep" "setup_base_system"
     fi
+
+    # eza
+    if command -v eza &> /dev/null; then
+        check_pass "eza" "$(eza --version 2>/dev/null | head -n1)"
+    else
+        check_fail "eza" "install_eza"
+    fi
+
+    # zoxide
+    if command -v zoxide &> /dev/null; then
+        check_pass "zoxide" "$(zoxide --version 2>/dev/null)"
+    else
+        local user_home
+        user_home=$(get_user_home)
+        if [[ -x "${user_home}/.local/bin/zoxide" ]]; then
+            check_pass "zoxide"
+        else
+            check_fail "zoxide" "install_zoxide"
+        fi
+    fi
+
+    # tldr
+    if command -v tldr &> /dev/null; then
+        check_pass "tldr" "$(tldr --version 2>/dev/null)"
+    else
+        check_fail "tldr" "install_tldr"
+    fi
+
+    # glow
+    if command -v glow &> /dev/null; then
+        check_pass "glow" "$(glow --version 2>/dev/null)"
+    else
+        check_fail "glow" "install_glow"
+    fi
+
+    # lazygit
+    if command -v lazygit &> /dev/null; then
+        check_pass "lazygit" "$(lazygit --version 2>/dev/null | head -n1)"
+    else
+        check_fail "lazygit" "install_lazygit"
+    fi
+
+    # yazi
+    if command -v yazi &> /dev/null; then
+        check_pass "yazi" "$(yazi --version 2>/dev/null)"
+    else
+        check_fail "yazi" "install_yazi"
+    fi
+
+    # chafa
+    if command -v chafa &> /dev/null; then
+        check_pass "chafa" "$(chafa --version 2>/dev/null | head -n1)"
+    else
+        check_fail "chafa" "install_chafa"
+    fi
 }
 
 check_docker() {

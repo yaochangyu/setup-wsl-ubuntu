@@ -144,7 +144,7 @@ WSL_PASSWORD=your_password
 
 ### CLI 工具
 - ✅ jq, yq - JSON/YAML 處理
-- ✅ bat - 增強的 cat
+- ✅ bat - 增強的 cat（`alias cat='bat'`）
 - ✅ ripgrep - 快速搜尋
 - ✅ fzf - 模糊搜尋
 - ✅ glab - GitLab CLI
@@ -154,9 +154,18 @@ WSL_PASSWORD=your_password
 - ✅ Starship - 華麗的 Bash 提示符號（catppuccin-powerline 主題）
 - ✅ better-rm - 更安全的 rm（刪除前移至垃圾桶）
 
+#### 現代替代工具
+- ✅ **eza** - ls 替代品，支援 icon 與 git 狀態（`alias ls/ll/la/lt`）
+- ✅ **zoxide** - 智慧 cd 替代品（`z` 指令）
+- ✅ **tldr** (tlrc) - man 替代品，顯示實用範例（`alias man='tldr'`）
+- ✅ **glow** - 終端 Markdown 閱讀器
+- ✅ **lazygit** - 終端 Git TUI 介面
+- ✅ **yazi** - 終端檔案瀏覽器
+- ✅ **chafa** - 終端圖片瀏覽
+
 ### 使用者環境
 - ✅ ~/.profile - WINDOWS_USERNAME、JQ_COLORS、EDITOR、GPG_TTY
-- ✅ ~/.bashrc - Bash 補全設定、Starship 初始化
+- ✅ ~/.bashrc - Bash 補全設定、Starship 初始化、現代 CLI alias
 - ✅ SSH 金鑰（RSA 4096）自動產生
 - ✅ ~/projects 工作目錄建立
 
@@ -431,4 +440,4 @@ MIT License
 
 ---
 
-**最後更新：** 2026-03-24
+**最後更新：** 2026-05-05

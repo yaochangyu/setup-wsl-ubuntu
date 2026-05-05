@@ -578,6 +578,49 @@ install_fzf() {
     success "fzf ${latest_version} 安裝完成"
 }
 
+# 安裝 eza（ls 替代品，從 GitHub Releases 下載）
+install_eza() {
+    if command -v eza &> /dev/null; then
+        info "eza 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 eza..."
+
+    local arch
+    arch=$(uname -m)
+    local eza_arch="x86_64"
+    [[ "${arch}" == "aarch64" ]] && eza_arch="aarch64"
+
+    local latest_version
+    latest_version=$(curl -fsSL https://api.github.com/repos/eza-community/eza/releases/latest \
+        | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+
+    if [[ -z "${latest_version}" ]]; then
+        warning "無法取得 eza 最新版本，跳過安裝"
+        return 1
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tarball="${tmp_dir}/eza.tar.gz"
+
+    wget -qO "${tarball}" \
+        "https://github.com/eza-community/eza/releases/download/v${latest_version}/eza_${eza_arch}-unknown-linux-gnu.tar.gz" \
+        >> "${LOG_FILE}" 2>&1
+
+    tar -xzf "${tarball}" -C "${tmp_dir}" >> "${LOG_FILE}" 2>&1
+    install -o root -g root -m 0755 "${tmp_dir}/eza" /usr/local/bin/eza
+    rm -rf "${tmp_dir}"
+
+    if command -v eza &> /dev/null; then
+        success "eza $(eza --version 2>/dev/null | head -n1) 安裝完成"
+    else
+        warning "eza 安裝失敗"
+        return 1
+    fi
+}
+
 # 安裝 yq（YAML 處理，從 GitHub 下載）
 install_yq() {
     if command -v yq &> /dev/null; then
@@ -718,6 +761,261 @@ setup_bat_symlink() {
     fi
 }
 
+# 安裝 zoxide（cd 替代品，官方安裝腳本）
+install_zoxide() {
+    if command -v zoxide &> /dev/null; then
+        info "zoxide 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 zoxide..."
+
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home
+    user_home=$(eval echo ~"${actual_user}")
+
+    sudo -u "${actual_user}" bash -c \
+        'curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash' \
+        >> "${LOG_FILE}" 2>&1 || { warning "zoxide 安裝失敗"; return 1; }
+
+    # 安裝器預設放在 ~/.local/bin，確保加入 PATH
+    local zoxide_bin="${user_home}/.local/bin/zoxide"
+    if [[ -x "${zoxide_bin}" ]]; then
+        if ! grep -q 'zoxide init bash' "${user_home}/.bashrc" 2>/dev/null; then
+            echo 'eval "$(zoxide init bash)"' >> "${user_home}/.bashrc"
+            info "已將 zoxide init 加入 ~/.bashrc"
+        fi
+        success "zoxide 安裝完成"
+    else
+        warning "zoxide 安裝失敗"
+        return 1
+    fi
+}
+
+# 安裝 tldr（man 替代品，Rust 客戶端 tlrc，從 GitHub Releases 下載）
+install_tldr() {
+    if command -v tldr &> /dev/null; then
+        info "tldr 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 tldr (tlrc)..."
+
+    local arch
+    arch=$(uname -m)
+    local tldr_arch="x86_64"
+    [[ "${arch}" == "aarch64" ]] && tldr_arch="aarch64"
+
+    local latest_version
+    latest_version=$(curl -fsSL https://api.github.com/repos/tldr-pages/tlrc/releases/latest \
+        | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+
+    if [[ -z "${latest_version}" ]]; then
+        warning "無法取得 tlrc 最新版本，跳過安裝"
+        return 1
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tarball="${tmp_dir}/tlrc.tar.gz"
+
+    wget -qO "${tarball}" \
+        "https://github.com/tldr-pages/tlrc/releases/download/v${latest_version}/tldr-${tldr_arch}-unknown-linux-musl.tar.gz" \
+        >> "${LOG_FILE}" 2>&1
+
+    tar -xzf "${tarball}" -C "${tmp_dir}" >> "${LOG_FILE}" 2>&1
+    install -o root -g root -m 0755 "${tmp_dir}/tldr" /usr/local/bin/tldr
+    rm -rf "${tmp_dir}"
+
+    if command -v tldr &> /dev/null; then
+        success "tldr $(tldr --version 2>/dev/null) 安裝完成"
+    else
+        warning "tldr 安裝失敗"
+        return 1
+    fi
+}
+
+# 安裝 glow（Markdown 閱讀器，從 GitHub Releases 下載）
+install_glow() {
+    if command -v glow &> /dev/null; then
+        info "glow 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 glow..."
+
+    local arch
+    arch=$(uname -m)
+    local glow_arch="x86_64"
+    [[ "${arch}" == "aarch64" ]] && glow_arch="arm64"
+
+    local latest_version
+    latest_version=$(curl -fsSL https://api.github.com/repos/charmbracelet/glow/releases/latest \
+        | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+
+    if [[ -z "${latest_version}" ]]; then
+        warning "無法取得 glow 最新版本，跳過安裝"
+        return 1
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tarball="${tmp_dir}/glow.tar.gz"
+
+    wget -qO "${tarball}" \
+        "https://github.com/charmbracelet/glow/releases/download/v${latest_version}/glow_${latest_version}_Linux_${glow_arch}.tar.gz" \
+        >> "${LOG_FILE}" 2>&1
+
+    tar -xzf "${tarball}" -C "${tmp_dir}" >> "${LOG_FILE}" 2>&1
+    install -o root -g root -m 0755 "${tmp_dir}/glow" /usr/local/bin/glow
+    rm -rf "${tmp_dir}"
+
+    if command -v glow &> /dev/null; then
+        success "glow $(glow --version 2>/dev/null) 安裝完成"
+    else
+        warning "glow 安裝失敗"
+        return 1
+    fi
+}
+
+# 安裝 lazygit（Git TUI，從 GitHub Releases 下載）
+install_lazygit() {
+    if command -v lazygit &> /dev/null; then
+        info "lazygit 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 lazygit..."
+
+    local arch
+    arch=$(uname -m)
+    local lg_arch="x86_64"
+    [[ "${arch}" == "aarch64" ]] && lg_arch="arm64"
+
+    local latest_version
+    latest_version=$(curl -fsSL https://api.github.com/repos/jesseduffield/lazygit/releases/latest \
+        | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+
+    if [[ -z "${latest_version}" ]]; then
+        warning "無法取得 lazygit 最新版本，跳過安裝"
+        return 1
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local tarball="${tmp_dir}/lazygit.tar.gz"
+
+    wget -qO "${tarball}" \
+        "https://github.com/jesseduffield/lazygit/releases/download/v${latest_version}/lazygit_${latest_version}_Linux_${lg_arch}.tar.gz" \
+        >> "${LOG_FILE}" 2>&1
+
+    tar -xzf "${tarball}" -C "${tmp_dir}" lazygit >> "${LOG_FILE}" 2>&1
+    install -o root -g root -m 0755 "${tmp_dir}/lazygit" /usr/local/bin/lazygit
+    rm -rf "${tmp_dir}"
+
+    if command -v lazygit &> /dev/null; then
+        success "lazygit $(lazygit --version 2>/dev/null | head -n1) 安裝完成"
+    else
+        warning "lazygit 安裝失敗"
+        return 1
+    fi
+}
+
+# 安裝 yazi（終端檔案瀏覽器，從 GitHub Releases 下載）
+install_yazi() {
+    if command -v yazi &> /dev/null; then
+        info "yazi 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 yazi..."
+
+    local arch
+    arch=$(uname -m)
+    local yazi_arch="x86_64"
+    [[ "${arch}" == "aarch64" ]] && yazi_arch="aarch64"
+
+    local latest_version
+    latest_version=$(curl -fsSL https://api.github.com/repos/sxyazi/yazi/releases/latest \
+        | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+
+    if [[ -z "${latest_version}" ]]; then
+        warning "無法取得 yazi 最新版本，跳過安裝"
+        return 1
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local zipfile="${tmp_dir}/yazi.zip"
+
+    wget -qO "${zipfile}" \
+        "https://github.com/sxyazi/yazi/releases/download/v${latest_version}/yazi-${yazi_arch}-unknown-linux-musl.zip" \
+        >> "${LOG_FILE}" 2>&1
+
+    unzip -q "${zipfile}" -d "${tmp_dir}" >> "${LOG_FILE}" 2>&1
+    local extracted_dir="${tmp_dir}/yazi-${yazi_arch}-unknown-linux-musl"
+    install -o root -g root -m 0755 "${extracted_dir}/yazi" /usr/local/bin/yazi
+    install -o root -g root -m 0755 "${extracted_dir}/ya" /usr/local/bin/ya
+    rm -rf "${tmp_dir}"
+
+    if command -v yazi &> /dev/null; then
+        success "yazi $(yazi --version 2>/dev/null) 安裝完成"
+    else
+        warning "yazi 安裝失敗"
+        return 1
+    fi
+}
+
+# 安裝 chafa（終端圖片瀏覽，透過 apt）
+install_chafa() {
+    if command -v chafa &> /dev/null; then
+        info "chafa 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 chafa..."
+    if apt_install chafa; then
+        success "chafa $(chafa --version 2>/dev/null | head -n1) 安裝完成"
+    else
+        warning "chafa 安裝失敗"
+        return 1
+    fi
+}
+
+# 設定現代 CLI 工具替代 alias
+setup_modern_cli_aliases() {
+    info "設定現代 CLI 工具 alias..."
+
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home
+    user_home=$(eval echo ~"${actual_user}")
+    local bashrc="${user_home}/.bashrc"
+
+    if grep -q '# modern-cli-aliases' "${bashrc}" 2>/dev/null; then
+        info "alias 已設定，跳過"
+        return 0
+    fi
+
+    sudo -u "${actual_user}" tee -a "${bashrc}" > /dev/null <<'EOF'
+
+# modern-cli-aliases: 現代 CLI 工具替代指令
+if command -v eza &> /dev/null; then
+    alias ls='eza --icons'
+    alias ll='eza -l --icons'
+    alias la='eza -la --icons'
+    alias lt='eza --tree --icons'
+fi
+if command -v bat &> /dev/null || command -v batcat &> /dev/null; then
+    alias cat='bat --paging=never'
+fi
+if command -v tldr &> /dev/null; then
+    alias man='tldr'
+fi
+EOF
+
+    success "現代 CLI alias 設定完成"
+}
+
 # 安裝 oh-my-zsh
 install_oh_my_zsh() {
     local actual_user="${SUDO_USER:-$USER}"
@@ -743,9 +1041,17 @@ install_cli_tools() {
     setup_bat_symlink || true
     install_oh_my_zsh || true
     install_better_rm || true
+    install_eza || true
+    install_zoxide || true
+    install_tldr || true
+    install_glow || true
+    install_lazygit || true
+    install_yazi || true
+    install_chafa || true
+    setup_modern_cli_aliases || true
 
     # 驗證安裝
-    local tools=("yq" "glab" "starship")
+    local tools=("yq" "glab" "starship" "eza" "zoxide" "tldr" "glow" "lazygit" "yazi" "chafa")
     info "已安裝的工具："
     for tool in "${tools[@]}"; do
         if command -v "${tool}" &> /dev/null; then
@@ -883,6 +1189,14 @@ export -f cleanup_apt_cache
 export -f show_system_info
 export -f setup_system_optimization
 export -f setup_base_system
+export -f install_eza
+export -f install_zoxide
+export -f install_tldr
+export -f install_glow
+export -f install_lazygit
+export -f install_yazi
+export -f install_chafa
+export -f setup_modern_cli_aliases
 export -f install_yq
 export -f install_glab
 export -f npm_global_install
