@@ -163,6 +163,8 @@ WSL_PASSWORD=your_password
 - ✅ **yazi** - 終端檔案瀏覽器
 - ✅ **chafa** - 終端圖片瀏覽
 
+> 備註：`yq` 目前維持使用 `mikefarah/yq` 官方 binary，不使用 Ubuntu apt 的 `yq`。原因是 apt 版 `yq` 屬於另一套 `jq wrapper` 實作，和本專案原本預期的工具不同；`fzf` 也維持使用 GitHub 版本，因為 apt 版曾驗證不支援目前 Bash 整合用到的 `fzf --bash`。
+
 ### 使用者環境
 - ✅ ~/.profile - WINDOWS_USERNAME、JQ_COLORS、EDITOR、GPG_TTY
 - ✅ ~/.bashrc - Bash 補全設定、Starship 初始化、現代 CLI alias
