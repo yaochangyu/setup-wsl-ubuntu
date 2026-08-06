@@ -64,7 +64,7 @@ cd D:\lab\setup-wsl-ubuntu
 # 指定版本號（安裝 Ubuntu-24.04）
 .\setup-ubuntu.ps1 -UbuntuVersion 24.04 -WslUsername myuser -WslPassword mypassword
 
-# 不指定版本：安裝最新 LTS（distro name = Ubuntu）
+# 直接執行：使用預設版本 24.04
 .\setup-ubuntu.ps1
 
 # 或透過 .env 檔案設定（詳見「環境設定檔」章節）
@@ -205,7 +205,7 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 ```
 參數:
   -UbuntuVersion <版號>   Ubuntu 版本號（例: 24.04、22.04）
-                          不指定則安裝最新 LTS（distro name = Ubuntu）
+                          不指定則使用預設值 24.04
   -WslUsername <名稱>     WSL 使用者名稱（預設: yao）
   -WslPassword <密碼>     WSL 使用者密碼（預設: changeme）
   -Proxy <url>            設定代理伺服器
