@@ -449,14 +449,6 @@ EOF
         fi
     fi
 
-    # fzf shell integration（使用 /usr/local/bin/fzf，支援 --bash）
-    if command -v fzf &> /dev/null; then
-        info "將 fzf shell integration 加入 ~/.bashrc..."
-        if ! grep -q 'fzf --bash' "${user_home}/.bashrc" 2>/dev/null; then
-            echo 'eval "$(fzf --bash)"' >> "${user_home}/.bashrc"
-        fi
-    fi
-
     success "Bash 使用者環境設定完成"
 }
 
@@ -539,43 +531,51 @@ install_better_rm() {
 
 # 安裝 fzf（從 GitHub 下載最新版，避免 apt 舊版不支援 --bash 的問題）
 install_fzf() {
-    if command -v fzf &> /dev/null; then
-        info "fzf 已安裝，跳過"
-        return 0
-    fi
-
-    info "安裝 fzf..."
-
     local actual_user="${SUDO_USER:-$USER}"
     local user_home
     user_home=$(eval echo ~"${actual_user}")
-    local arch
-    arch=$(uname -m)
-    local fzf_arch="amd64"
-    [[ "${arch}" == "aarch64" ]] && fzf_arch="arm64"
 
-    local latest_version
-    latest_version=$(curl -fsSL https://api.github.com/repos/junegunn/fzf/releases/latest \
-        | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+    if command -v fzf &> /dev/null; then
+        info "fzf 已安裝，跳過"
+    else
+        info "安裝 fzf..."
 
-    if [[ -z "${latest_version}" ]]; then
-        warning "無法取得 fzf 最新版本，跳過安裝"
-        return 1
+        local arch
+        arch=$(uname -m)
+        local fzf_arch="amd64"
+        [[ "${arch}" == "aarch64" ]] && fzf_arch="arm64"
+
+        local latest_version
+        latest_version=$(curl -fsSL https://api.github.com/repos/junegunn/fzf/releases/latest \
+            | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+
+        if [[ -z "${latest_version}" ]]; then
+            warning "無法取得 fzf 最新版本，跳過安裝"
+            return 1
+        fi
+
+        local tmp_dir
+        tmp_dir=$(mktemp -d)
+        local tarball="${tmp_dir}/fzf.tar.gz"
+
+        wget -qO "${tarball}" \
+            "https://github.com/junegunn/fzf/releases/download/v${latest_version}/fzf-${latest_version}-linux_${fzf_arch}.tar.gz" \
+            >> "${LOG_FILE}" 2>&1
+
+        tar -xzf "${tarball}" -C /usr/local/bin/ fzf
+        chmod +x /usr/local/bin/fzf
+        rm -rf "${tmp_dir}"
+
+        success "fzf ${latest_version} 安裝完成"
     fi
 
-    local tmp_dir
-    tmp_dir=$(mktemp -d)
-    local tarball="${tmp_dir}/fzf.tar.gz"
-
-    wget -qO "${tarball}" \
-        "https://github.com/junegunn/fzf/releases/download/v${latest_version}/fzf-${latest_version}-linux_${fzf_arch}.tar.gz" \
-        >> "${LOG_FILE}" 2>&1
-
-    tar -xzf "${tarball}" -C /usr/local/bin/ fzf
-    chmod +x /usr/local/bin/fzf
-    rm -rf "${tmp_dir}"
-
-    success "fzf ${latest_version} 安裝完成"
+    # fzf shell integration（支援 --bash，Ctrl-R 互動搜尋歷史指令）
+    # 放在 install_fzf() 自己身上，不依賴 setup_bash_env() 的執行順序
+    # （setup_base_system 會比 install_cli_tools 早跑，屆時 fzf 還沒裝）
+    if ! grep -q 'fzf --bash' "${user_home}/.bashrc" 2>/dev/null; then
+        echo 'eval "$(fzf --bash)"' >> "${user_home}/.bashrc"
+        info "已將 fzf shell integration 加入 ~/.bashrc"
+    fi
 }
 
 # 安裝 eza（ls 替代品，從 GitHub Releases 下載）
@@ -781,6 +781,11 @@ install_zoxide() {
     # 安裝器預設放在 ~/.local/bin，確保加入 PATH
     local zoxide_bin="${user_home}/.local/bin/zoxide"
     if [[ -x "${zoxide_bin}" ]]; then
+        # zoxide init 必須在 ~/.local/bin 加入 PATH 之後才會被找到，先確保 PATH 已寫入
+        if ! grep -q '\.local/bin' "${user_home}/.bashrc" 2>/dev/null; then
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${user_home}/.bashrc"
+            info "已將 ~/.local/bin 加入 ~/.bashrc PATH"
+        fi
         if ! grep -q 'zoxide init bash' "${user_home}/.bashrc" 2>/dev/null; then
             echo 'eval "$(zoxide init bash)"' >> "${user_home}/.bashrc"
             info "已將 zoxide init 加入 ~/.bashrc"
