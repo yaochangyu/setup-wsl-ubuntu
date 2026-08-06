@@ -590,6 +590,11 @@ main() {
         install_devops_tools
     fi
 
+    update_progress "安裝 Homebrew..."
+    if declare -f install_homebrew &> /dev/null; then
+        install_homebrew
+    fi
+
     print_separator
 
     # 驗證安裝

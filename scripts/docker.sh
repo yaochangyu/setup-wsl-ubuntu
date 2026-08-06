@@ -183,8 +183,13 @@ setup_docker_service() {
 
         # 檢查 systemd 是否可用
         if command -v systemctl &> /dev/null && systemctl is-system-running &> /dev/null; then
-            info "systemd 可用，啟用 Docker 服務..."
+            # 已啟用且運作中則跳過
+            if systemctl is-enabled docker &> /dev/null && systemctl is-active docker &> /dev/null; then
+                info "Docker 服務已啟用且運作中，跳過"
+                return 0
+            fi
 
+            info "systemd 可用，啟用 Docker 服務..."
             systemctl enable docker >> "${LOG_FILE}" 2>&1 || warning "無法啟用 Docker 服務（可能需要 systemd）"
             systemctl start docker >> "${LOG_FILE}" 2>&1 || warning "無法啟動 Docker 服務"
 
@@ -197,7 +202,12 @@ setup_docker_service() {
         else
             warning "systemd 不可用，使用傳統 service 命令..."
 
-            # 使用傳統的 service 命令
+            # 已運作中則跳過
+            if service docker status &> /dev/null 2>&1; then
+                info "Docker 服務已運作中，跳過"
+                return 0
+            fi
+
             service docker start >> "${LOG_FILE}" 2>&1 || warning "無法啟動 Docker 服務"
 
             if service docker status &> /dev/null; then
@@ -209,6 +219,11 @@ setup_docker_service() {
         fi
     else
         # 非 WSL 環境，正常使用 systemd
+        if systemctl is-enabled docker &> /dev/null && systemctl is-active docker &> /dev/null; then
+            info "Docker 服務已啟用且運作中，跳過"
+            return 0
+        fi
+
         systemctl enable docker >> "${LOG_FILE}" 2>&1
         systemctl start docker >> "${LOG_FILE}" 2>&1
 
@@ -257,6 +272,14 @@ configure_docker_daemon() {
 
     local daemon_config="/etc/docker/daemon.json"
     local config_dir="/etc/docker"
+
+    # 已配置則跳過（判斷：daemon.json 存在且含基本 key）
+    if [[ -f "${daemon_config}" ]] \
+        && grep -q '"log-driver"' "${daemon_config}" \
+        && grep -q '"storage-driver"' "${daemon_config}"; then
+        info "Docker daemon 已配置（${daemon_config}），跳過"
+        return 0
+    fi
 
     # 確保配置目錄存在
     if [[ ! -d "${config_dir}" ]]; then
@@ -348,6 +371,7 @@ configure_docker_daemon() {
     if [[ -f "${daemon_config}" ]]; then
         success "Docker daemon 配置完成"
         debug "配置檔案: ${daemon_config}"
+        DOCKER_CONFIG_CHANGED=true
 
         # 驗證 JSON 格式
         if command -v jq &> /dev/null; then
@@ -377,10 +401,16 @@ setup_docker_systemd_override() {
         return 0
     fi
 
-    info "建立 Docker systemd override（移除 -H fd:// 與 daemon.json hosts 的衝突）..."
-
     local override_dir="/etc/systemd/system/docker.service.d"
     local override_file="${override_dir}/override.conf"
+
+    # 已設定則跳過
+    if [[ -f "${override_file}" ]] && grep -q 'ExecStart=/usr/bin/dockerd' "${override_file}"; then
+        info "Docker systemd override 已設定（${override_file}），跳過"
+        return 0
+    fi
+
+    info "建立 Docker systemd override（移除 -H fd:// 與 daemon.json hosts 的衝突）..."
 
     mkdir -p "${override_dir}"
     cat > "${override_file}" <<'EOF'
@@ -390,11 +420,18 @@ ExecStart=/usr/bin/dockerd
 EOF
 
     systemctl daemon-reload >> "${LOG_FILE}" 2>&1
+    DOCKER_CONFIG_CHANGED=true
     success "Docker systemd override 設定完成: ${override_file}"
 }
 
 # 重新載入 Docker daemon
 reload_docker_daemon() {
+    # 無設定變更則跳過
+    if [[ "${DOCKER_CONFIG_CHANGED:-false}" != "true" ]]; then
+        debug "設定未變更，跳過 Docker daemon 重新載入"
+        return 0
+    fi
+
     info "重新載入 Docker daemon..."
 
     if grep -qi microsoft /proc/version; then
@@ -500,6 +537,9 @@ show_docker_info() {
 # 主要 Docker 安裝函式
 install_docker() {
     print_header "安裝 Docker Engine"
+
+    # 追蹤設定是否有變更（決定是否需要 reload）
+    DOCKER_CONFIG_CHANGED=false
 
     # 安裝（已安裝則跳過）
     if command -v docker &> /dev/null; then
