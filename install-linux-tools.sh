@@ -16,7 +16,7 @@
 # 選項：
 #   --offline          使用離線安裝模式
 #   --proxy <url>      設定代理伺服器
-#   --config <file>    使用自訂配置檔
+#   --config <file>    使用舊版配置檔（過渡相容）
 #   --skip-verify      跳過安裝驗證
 #   --help             顯示說明
 #
@@ -38,8 +38,9 @@ readonly SCRIPT_VERSION="1.0.0"
 # 目錄設定
 readonly LOG_DIR="${SCRIPT_DIR}/logs"
 readonly SCRIPTS_DIR="${SCRIPT_DIR}/scripts"
-readonly OFFLINE_DIR="${SCRIPT_DIR}/offline-packages"
 readonly CONFIG_DIR="${SCRIPT_DIR}"
+readonly DEFAULT_ENV_FILE="${CONFIG_DIR}/.env"
+readonly DEFAULT_CONFIG_FILE="${CONFIG_DIR}/config.sh"
 
 # 日誌設定
 readonly LOG_FILE="${LOG_DIR}/install-$(date +%Y%m%d-%H%M%S).log"
@@ -54,16 +55,22 @@ readonly COLOR_CYAN='\033[0;36m'
 readonly COLOR_BOLD='\033[1m'
 
 ###############################################################################
-# 環境變數（未設定時使用預設值；可由外部環境或 config.sh 覆蓋）
+# 環境變數（未設定時使用預設值；可由外部環境或 .env 覆蓋）
 ###############################################################################
 : "${DEBUG:=false}"                      # 啟用除錯輸出（export DEBUG=true）
 export DEBIAN_FRONTEND=noninteractive    # 禁用 dpkg/apt 互動式提示
 
 # 安裝選項（預設值）
 OFFLINE_MODE=false
+OFFLINE_DIR="${SCRIPT_DIR}/offline-packages"
 PROXY_URL=""
-CONFIG_FILE="${CONFIG_DIR}/config.sh"
+ENV_FILE="${DEFAULT_ENV_FILE}"
+CONFIG_FILE="${DEFAULT_CONFIG_FILE}"
 SKIP_VERIFY=false
+LEGACY_CONFIG_ENABLED=false
+
+# CLI 參數覆蓋追蹤（維持 CLI > .env > fallback）
+declare -A CLI_OVERRIDE=()
 
 # 安裝狀態追蹤
 declare -A INSTALL_STATUS
@@ -79,6 +86,68 @@ init_log_dir() {
     if [[ ! -d "${LOG_DIR}" ]]; then
         mkdir -p "${LOG_DIR}"
     fi
+}
+
+trim_whitespace() {
+    local value="$1"
+
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+
+    printf '%s' "${value}"
+}
+
+set_env_var() {
+    local key="$1"
+    local value="$2"
+
+    if [[ -n "${CLI_OVERRIDE[${key}]:-}" ]]; then
+        debug "略過 ${key}：已由 CLI 參數指定"
+        return 0
+    fi
+
+    value=$(trim_whitespace "${value}")
+
+    if [[ "${value}" =~ ^".*"$ ]] || [[ "${value}" =~ ^'.*'$ ]]; then
+        value="${value:1:${#value}-2}"
+    fi
+
+    printf -v "${key}" '%s' "${value}"
+    export "${key}"
+}
+
+load_env_file() {
+    local env_file="$1"
+    local loaded=0
+
+    if [[ ! -f "${env_file}" ]]; then
+        return 1
+    fi
+
+    info "載入 .env 設定檔: ${env_file}"
+
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        line="${line%$'\r'}"
+
+        [[ -z "$(trim_whitespace "${line}")" ]] && continue
+        [[ "${line}" =~ ^[[:space:]]*# ]] && continue
+
+        if [[ "${line}" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            local key="${BASH_REMATCH[1]}"
+            local value="${BASH_REMATCH[2]}"
+            set_env_var "${key}" "${value}"
+            loaded=1
+        else
+            warning ".env 存在無法解析的設定，已略過: ${line}"
+        fi
+    done < "${env_file}"
+
+    if [[ "${OFFLINE_MODE}" == "true" ]] && [[ -z "${OFFLINE_DIR}" ]]; then
+        OFFLINE_DIR="${SCRIPT_DIR}/offline-packages"
+    fi
+
+    success ".env 設定檔載入完成"
+    return 0
 }
 
 # 日誌函式
@@ -255,15 +324,36 @@ check_disk_space() {
     fi
 }
 
-# 載入配置檔
-load_config() {
-    if [[ -f "${CONFIG_FILE}" ]]; then
-        info "載入配置檔: ${CONFIG_FILE}"
-        source "${CONFIG_FILE}"
-        success "配置檔載入完成"
+# 載入設定（以 .env 為主，config.sh 為過渡相容）
+load_configuration() {
+    local env_loaded=false
+
+    if load_env_file "${ENV_FILE}"; then
+        env_loaded=true
     else
-        warning "找不到配置檔: ${CONFIG_FILE}"
-        warning "使用預設設定"
+        warning "找不到 .env 設定檔: ${ENV_FILE}"
+    fi
+
+    if [[ "${LEGACY_CONFIG_ENABLED}" == "true" ]]; then
+        if [[ "${env_loaded}" == "true" ]]; then
+            warning "已偵測 .env，忽略舊版配置檔: ${CONFIG_FILE}"
+            warning "請改用 .env 作為主要設定來源"
+        elif [[ -f "${CONFIG_FILE}" ]]; then
+            warning "載入舊版配置檔: ${CONFIG_FILE}"
+            warning "config.sh 已進入過渡相容模式，請儘快遷移到 .env"
+            source "${CONFIG_FILE}"
+            success "舊版配置檔載入完成"
+        else
+            warning "找不到舊版配置檔: ${CONFIG_FILE}"
+            warning "使用預設設定"
+        fi
+    elif [[ "${env_loaded}" == "false" ]] && [[ -f "${DEFAULT_CONFIG_FILE}" ]]; then
+        warning "未找到 .env，改用舊版配置檔: ${DEFAULT_CONFIG_FILE}"
+        warning "config.sh 已進入過渡相容模式，請儘快遷移到 .env"
+        source "${DEFAULT_CONFIG_FILE}"
+        success "舊版配置檔載入完成"
+    elif [[ "${env_loaded}" == "false" ]]; then
+        warning "未找到可用設定檔，使用預設設定"
     fi
 }
 
@@ -437,14 +527,15 @@ WSL2 Ubuntu 開發環境自動安裝腳本 v${SCRIPT_VERSION}
 選項:
     --offline          使用離線安裝模式
     --proxy <url>      設定代理伺服器 (例如: http://proxy.example.com:8080)
-    --config <file>    使用自訂配置檔 (預設: config.sh)
+    --config <file>    使用舊版配置檔（過渡相容，預設: config.sh）
     --skip-verify      跳過安裝驗證
     --help             顯示此說明訊息
 
 範例:
     sudo ${SCRIPT_NAME}
     sudo ${SCRIPT_NAME} --proxy http://proxy.example.com:8080
-    sudo ${SCRIPT_NAME} --offline --config my-config.sh
+    sudo ${SCRIPT_NAME} --offline
+    sudo ${SCRIPT_NAME} --config my-config.sh
 
 EOF
 }
@@ -455,18 +546,22 @@ parse_args() {
         case $1 in
             --offline)
                 OFFLINE_MODE=true
+                CLI_OVERRIDE[OFFLINE_MODE]=true
                 shift
                 ;;
             --proxy)
                 PROXY_URL="$2"
+                CLI_OVERRIDE[PROXY_URL]=true
                 shift 2
                 ;;
             --config)
                 CONFIG_FILE="$2"
+                LEGACY_CONFIG_ENABLED=true
                 shift 2
                 ;;
             --skip-verify)
                 SKIP_VERIFY=true
+                CLI_OVERRIDE[SKIP_VERIFY]=true
                 shift
                 ;;
             --help)
@@ -506,8 +601,8 @@ main() {
 
     print_separator
 
-    # 載入配置
-    load_config
+    # 載入設定
+    load_configuration
     setup_proxy
 
     # 修復中斷的套件，再更新系統
