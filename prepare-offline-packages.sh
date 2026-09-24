@@ -17,7 +17,7 @@ readonly LOG_FILE="${SCRIPT_DIR}/logs/prepare-offline-$(date +%Y%m%d-%H%M%S).log
 mkdir -p "${OFFLINE_DIR}"
 mkdir -p "$(dirname "${LOG_FILE}")"
 
-echo "========================================
+echo "========================================"
 echo "準備離線安裝包"
 echo "========================================"
 echo ""

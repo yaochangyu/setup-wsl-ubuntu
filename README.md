@@ -95,13 +95,13 @@ sudo ./install-linux-tools.sh
 
 ## 環境設定檔
 
-敏感資訊（帳號、密碼）建議透過 `.env` 檔案管理，避免直接寫在命令列：
+本專案統一以 `.env` 檔案作為所有設定的主要來源（包含帳號、密碼、時區、代理、Docker 與各語言版本等），避免直接寫在命令列：
 
 ```bash
 cp .env.example .env
 ```
 
-編輯 `.env`：
+編輯 `.env`（各項參數皆附有詳細說明）：
 
 ```ini
 # WSL 使用者帳號
@@ -109,7 +109,9 @@ WSL_USERNAME=your_username
 WSL_PASSWORD=your_password
 ```
 
-> `.env` 已加入 `.gitignore`，不會被納入版控。
+> [!NOTE]
+> - `.env` 已加入 `.gitignore`，不會被納入版控。
+> - 舊有的 `config.sh` / `config.example.sh` 形式已淘汰（Deprecated），腳本仍提供相容回退讀取，但建議統一使用 `.env`。
 
 ## 已安裝的工具
 
@@ -382,7 +384,7 @@ setup-wsl-ubuntu/
 ├── install-linux-tools.sh      # 步驟 3：在 Linux 內執行的開發工具安裝腳本
 ├── verify.sh                   # 工具安裝驗證（支援 --fix 自動重裝）
 ├── uninstall.sh                # 卸載所有已安裝的開發工具
-├── config.example.sh           # 配置檔範例
+├── config.example.sh           # [已淘汰/過渡] 配置檔範例（請改用 .env.example）
 ├── .env.example                # 環境設定範本（複製為 .env 後填入實際值）
 ├── README.md                   # 本文檔
 ├── tree.md                     # 專案結構

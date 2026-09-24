@@ -266,20 +266,12 @@ setup_docker_user_group() {
     fi
 }
 
-# 配置 Docker daemon
+# 配置 Docker daemon（採欄位級 merge，保護使用者既有設定）
 configure_docker_daemon() {
     info "配置 Docker daemon..."
 
     local daemon_config="/etc/docker/daemon.json"
     local config_dir="/etc/docker"
-
-    # 已配置則跳過（判斷：daemon.json 存在且含基本 key）
-    if [[ -f "${daemon_config}" ]] \
-        && grep -q '"log-driver"' "${daemon_config}" \
-        && grep -q '"storage-driver"' "${daemon_config}"; then
-        info "Docker daemon 已配置（${daemon_config}），跳過"
-        return 0
-    fi
 
     # 確保配置目錄存在
     if [[ ! -d "${config_dir}" ]]; then
@@ -297,76 +289,121 @@ configure_docker_daemon() {
         fi
     fi
 
+    local is_wsl="false"
+    if grep -qi microsoft /proc/version; then
+        is_wsl="true"
+    fi
+
+    local tmp_merged
+    tmp_merged=$(mktemp)
+
+    # 透過 Python 進行安全的欄位級合併（保護未受管理欄位）
+    python3 - "${daemon_config}" "${tmp_merged}" "${is_wsl}" "${DOCKER_WINDOWS_HOST}" "${DOCKER_TCP_PORT}" \
+        "${DOCKER_REGISTRY_MIRRORS:-}" "${PROXY_URL:-}" "${NO_PROXY:-}" <<'PYEOF'
+import json
+import os
+import sys
+
+daemon_path = sys.argv[1]
+out_path = sys.argv[2]
+is_wsl = sys.argv[3] == "true"
+docker_win_host = sys.argv[4].lower() == "true"
+docker_tcp_port = sys.argv[5]
+mirrors_raw = sys.argv[6]
+proxy_url = sys.argv[7].strip()
+no_proxy = sys.argv[8].strip()
+
+data = {}
+if os.path.exists(daemon_path):
+    try:
+        with open(daemon_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        data = {}
+
+# 1. 基礎日誌與儲存驅動
+if "log-driver" not in data:
+    data["log-driver"] = "json-file"
+if "log-opts" not in data:
+    data["log-opts"] = {"max-size": "10m", "max-file": "3"}
+if "storage-driver" not in data:
+    data["storage-driver"] = "overlay2"
+
+# 2. WSL 環境 hosts 設定
+if is_wsl and docker_win_host:
+    hosts = data.get("hosts", [])
+    if not isinstance(hosts, list):
+        hosts = []
+    if "unix:///var/run/docker.sock" not in hosts:
+        hosts.insert(0, "unix:///var/run/docker.sock")
+    has_tcp = False
+    for idx, h in enumerate(hosts):
+        if h.startswith("tcp://"):
+            has_tcp = True
+            if docker_tcp_port:
+                hosts[idx] = f"tcp://127.0.0.1:{docker_tcp_port}"
+            break
+    if not has_tcp and docker_tcp_port:
+        hosts.append(f"tcp://127.0.0.1:{docker_tcp_port}")
+    data["hosts"] = hosts
+
+# 3. 鏡像加速站
+if mirrors_raw:
+    mirrors = [m.strip() for m in mirrors_raw.split(",") if m.strip()]
+    existing_mirrors = data.get("registry-mirrors", [])
+    if not isinstance(existing_mirrors, list):
+        existing_mirrors = []
+    for m in mirrors:
+        if m not in existing_mirrors:
+            existing_mirrors.append(m)
+    data["registry-mirrors"] = existing_mirrors
+
+# 4. 代理設定
+if proxy_url:
+    proxies = data.get("proxies", {})
+    if not isinstance(proxies, dict):
+        proxies = {}
+    proxies["http-proxy"] = proxy_url
+    proxies["https-proxy"] = proxy_url
+    if no_proxy:
+        proxies["no-proxy"] = no_proxy
+    data["proxies"] = proxies
+
+with open(out_path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PYEOF
+
+    # 檢查是否需要更新
+    local needs_update=true
+    if [[ -f "${daemon_config}" ]]; then
+        if python3 -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f1, open(sys.argv[2]) as f2:
+        sys.exit(0 if json.load(f1) == json.load(f2) else 1)
+except Exception:
+    sys.exit(1)
+' "${daemon_config}" "${tmp_merged}" 2>/dev/null; then
+            needs_update=false
+        fi
+    fi
+
+    if [[ "${needs_update}" == "false" ]]; then
+        info "Docker daemon 配置無變更，保持既有設定"
+        rm -f "${tmp_merged}"
+        return 0
+    fi
+
     # 備份現有配置
     if [[ -f "${daemon_config}" ]]; then
         cp "${daemon_config}" "${daemon_config}.backup-$(date +%Y%m%d-%H%M%S)"
         debug "已備份現有的 daemon.json"
     fi
 
-    # 建立配置內容
-    local config_content='{
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "10m",
-    "max-file": "3"
-  },
-  "storage-driver": "overlay2"'
-
-    # WSL 環境：開放 TCP port 供 Windows 端存取 Docker Engine
-    if grep -qi microsoft /proc/version && [[ "${DOCKER_WINDOWS_HOST}" == "true" ]]; then
-        config_content+=',
-  "hosts": ["unix:///var/run/docker.sock", "tcp://127.0.0.1:'"${DOCKER_TCP_PORT}"'"]'
-        if [[ -n "${existing_tcp_port}" ]]; then
-            info "保留現有 Docker TCP host: 127.0.0.1:${DOCKER_TCP_PORT}"
-        else
-            info "已設定 Docker TCP host: 127.0.0.1:${DOCKER_TCP_PORT}（供 Windows 端使用）"
-        fi
-    fi
-
-    # 新增鏡像加速（如果設定）
-    if [[ -n "${DOCKER_REGISTRY_MIRRORS:-}" ]]; then
-        config_content+=',
-  "registry-mirrors": ['
-        IFS=',' read -ra MIRRORS <<< "${DOCKER_REGISTRY_MIRRORS}"
-        local first=true
-        for mirror in "${MIRRORS[@]}"; do
-            mirror=$(echo "${mirror}" | xargs)  # 移除空白
-            if [[ -n "${mirror}" ]]; then
-                if [[ "${first}" == "true" ]]; then
-                    first=false
-                else
-                    config_content+=','
-                fi
-                config_content+="
-    \"${mirror}\""
-            fi
-        done
-        config_content+='
-  ]'
-    fi
-
-    # 新增代理設定（如果設定）
-    if [[ -n "${PROXY_URL:-}" ]]; then
-        config_content+=',
-  "proxies": {
-    "http-proxy": "'"${PROXY_URL}"'",
-    "https-proxy": "'"${PROXY_URL}"'"'
-
-        if [[ -n "${NO_PROXY:-}" ]]; then
-            config_content+=',
-    "no-proxy": "'"${NO_PROXY}"'"'
-        fi
-
-        config_content+='
-  }'
-    fi
-
-    # 結束 JSON
-    config_content+='
-}'
-
-    # 寫入配置檔案
-    echo "${config_content}" > "${daemon_config}"
+    # 寫入新配置
+    cp "${tmp_merged}" "${daemon_config}"
+    rm -f "${tmp_merged}"
 
     if [[ -f "${daemon_config}" ]]; then
         success "Docker daemon 配置完成"

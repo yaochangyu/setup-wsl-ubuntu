@@ -103,6 +103,7 @@ tmp/
 .vscode/
 .idea/
 .claude/
+.omc/
 *.swp
 *.swo
 

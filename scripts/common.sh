@@ -786,9 +786,9 @@ install_zoxide() {
             echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${user_home}/.bashrc"
             info "已將 ~/.local/bin 加入 ~/.bashrc PATH"
         fi
-        if ! grep -q 'zoxide init bash' "${user_home}/.bashrc" 2>/dev/null; then
-            echo 'eval "$(zoxide init bash)"' >> "${user_home}/.bashrc"
-            info "已將 zoxide init 加入 ~/.bashrc"
+        if ! grep -q 'zoxide init' "${user_home}/.bashrc" 2>/dev/null; then
+            echo 'eval "$(zoxide init --cmd cd bash)"' >> "${user_home}/.bashrc"
+            info "已將 zoxide init (--cmd cd) 加入 ~/.bashrc"
         fi
         success "zoxide 安裝完成"
     else
@@ -825,7 +825,7 @@ install_tldr() {
     local tarball="${tmp_dir}/tlrc.tar.gz"
 
     wget -qO "${tarball}" \
-        "https://github.com/tldr-pages/tlrc/releases/download/v${latest_version}/tldr-${tldr_arch}-unknown-linux-musl.tar.gz" \
+        "https://github.com/tldr-pages/tlrc/releases/download/v${latest_version}/tlrc-v${latest_version}-${tldr_arch}-unknown-linux-musl.tar.gz" \
         >> "${LOG_FILE}" 2>&1
 
     tar -xzf "${tarball}" -C "${tmp_dir}" >> "${LOG_FILE}" 2>&1
@@ -872,7 +872,7 @@ install_glow() {
         >> "${LOG_FILE}" 2>&1
 
     tar -xzf "${tarball}" -C "${tmp_dir}" >> "${LOG_FILE}" 2>&1
-    install -o root -g root -m 0755 "${tmp_dir}/glow" /usr/local/bin/glow
+    install -o root -g root -m 0755 "${tmp_dir}"/glow_*/glow /usr/local/bin/glow
     rm -rf "${tmp_dir}"
 
     if command -v glow &> /dev/null; then
@@ -1015,6 +1015,12 @@ if command -v bat &> /dev/null || command -v batcat &> /dev/null; then
 fi
 if command -v tldr &> /dev/null; then
     alias man='tldr'
+fi
+if command -v lazygit &> /dev/null; then
+    alias lg='lazygit'
+fi
+if command -v yazi &> /dev/null; then
+    alias y='yazi'
 fi
 EOF
 

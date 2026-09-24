@@ -4,9 +4,9 @@
 setup-wsl-ubuntu/
 ├── .env.example
 ├── .archive/
-│   └── add-modern-cli-tools.plan.md
+│   ├── add-modern-cli-tools.plan.md
+│   └── config-to-env-migration.plan.md
 ├── config-to-env-inventory.md
-├── config-to-env-migration.plan.md
 ├── config-to-env-strategy.md
 ├── README.md
 ├── config.example.sh
