@@ -440,6 +440,7 @@ install_base_packages() {
         "tar"
         "ca-certificates"
         "gnupg"
+        "pinentry-qt"
         "lsb-release"
         "software-properties-common"
         "apt-transport-https"
