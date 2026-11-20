@@ -87,7 +87,8 @@ Write-Host ""
 # ============================================
 if (-not $Force) {
     Write-Host "`r[警告] 註銷 $DistroName 將永久刪除該發行版內的所有檔案與資料！" -ForegroundColor Red
-    $response = Read-Host "確定要繼續移除嗎？ (輸入 YES 確認)"
+    # Read-Host 提示前也要先 `r 回到行首，否則會沿用上一行的結尾欄位造成右移
+    $response = Read-Host "`r確定要繼續移除嗎？ (輸入 YES 確認)"
     if ($response -ne "YES") {
         Write-Host "`r已取消移除操作。" -ForegroundColor Yellow
         exit 0
