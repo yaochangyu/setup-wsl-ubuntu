@@ -333,9 +333,10 @@ function Main {
     $resolvedVersion   = if ($UbuntuVersion) { $UbuntuVersion } elseif ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { "24.04" }
     $Script:DistroName = "Ubuntu-$resolvedVersion"
 
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "Ubuntu 開發工具安裝程式" -ForegroundColor Cyan
-    Write-Host "========================================" -ForegroundColor Cyan
+    # banner 也需要 `r 強制回到行首，避免階梯狀偏移
+    Write-Host "`r========================================" -ForegroundColor Cyan
+    Write-Host "`rUbuntu 開發工具安裝程式" -ForegroundColor Cyan
+    Write-Host "`r========================================" -ForegroundColor Cyan
 
     Initialize-LogDirectory
     Write-Log "啟動 Ubuntu 工具安裝程式" "Success"

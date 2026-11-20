@@ -303,9 +303,10 @@ function Set-WSL2AsDefault {
 # ============================================
 
 function Main {
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "WSL2 Windows 功能啟用程式（需要管理員）" -ForegroundColor Cyan
-    Write-Host "========================================" -ForegroundColor Cyan
+    # banner 也需要 `r 強制回到行首，避免階梯狀偏移
+    Write-Host "`r========================================" -ForegroundColor Cyan
+    Write-Host "`rWSL2 Windows 功能啟用程式（需要管理員）" -ForegroundColor Cyan
+    Write-Host "`r========================================" -ForegroundColor Cyan
 
     Initialize-LogDirectory
     Write-Log "啟動 WSL2 功能啟用程式" "Success"

@@ -338,9 +338,10 @@ function Main {
     $resolvedVersion   = if ($UbuntuVersion) { $UbuntuVersion } elseif ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { "24.04" }
     $Script:DistroName = if ($resolvedVersion) { "Ubuntu-$resolvedVersion" } else { "Ubuntu" }
 
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "WSL Ubuntu 安裝程式" -ForegroundColor Cyan
-    Write-Host "========================================" -ForegroundColor Cyan
+    # banner 也需要 `r 強制回到行首，否則游標若殘留在上一個指令的欄位，會造成階梯狀偏移
+    Write-Host "`r========================================" -ForegroundColor Cyan
+    Write-Host "`rWSL Ubuntu 安裝程式" -ForegroundColor Cyan
+    Write-Host "`r========================================" -ForegroundColor Cyan
 
     Initialize-LogDirectory
     Write-Log "啟動 WSL 安裝程式" "Success"

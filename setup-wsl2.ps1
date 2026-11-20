@@ -48,9 +48,9 @@ $ProgressPreference    = "SilentlyContinue"
 $env:WSL_UTF8          = 1
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "WSL2 Ubuntu 一鍵安裝程式" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "`r========================================" -ForegroundColor Cyan
+Write-Host "`rWSL2 Ubuntu 一鍵安裝程式" -ForegroundColor Cyan
+Write-Host "`r========================================" -ForegroundColor Cyan
 
 $featuresScript = Join-Path $PSScriptRoot "setup-wsl2-features.ps1"
 $linuxScript    = Join-Path $PSScriptRoot "setup-ubuntu.ps1"
