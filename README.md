@@ -25,6 +25,35 @@
 
 ## 快速開始
 
+### 取得專案腳本
+
+你可以選擇「下載 ZIP 免安裝 Git」或使用「Git Clone」：
+
+#### 方法 A：免 Git 下載（推薦，適合全新乾淨環境）
+
+以 PowerShell 執行以下命令，自動下載並解壓縮至 `D:\lab\setup-wsl-ubuntu`（若無 D 槽可改為 `C:\lab` 或其他路徑）：
+
+```powershell
+$targetDir = "D:\lab"
+if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir -Force | Out-Null }
+$zipPath = "$targetDir\setup-wsl-ubuntu.zip"
+Invoke-WebRequest -Uri "https://github.com/yaochangyu/setup-wsl-ubuntu/archive/refs/heads/main.zip" -OutFile $zipPath
+Expand-Archive -Path $zipPath -DestinationPath $targetDir -Force
+Rename-Item -Path "$targetDir\setup-wsl-ubuntu-main" -NewName "setup-wsl-ubuntu" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path $zipPath -Force
+cd "$targetDir\setup-wsl-ubuntu"
+```
+
+#### 方法 B：使用 Git Clone
+
+```powershell
+cd D:\lab
+git clone https://github.com/yaochangyu/setup-wsl-ubuntu.git
+cd setup-wsl-ubuntu
+```
+
+---
+
 ### 推薦流程
 
 一般情況下，只要照下面兩步執行即可：
