@@ -49,6 +49,7 @@ $Global:LogFile    = ""
 # 環境變數設定
 # ============================================
 $env:WSL_UTF8 = 1          # 強制 wsl.exe 以 UTF-8 輸出，避免 wsl --list 亂碼
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $Script:BashTerm = "dumb"  # 關閉 bash ANSI 色彩碼，避免 PowerShell 輸出亂碼
 # SUDO_USER - 傳遞給 bash 腳本，識別實際非 root 使用者（由 WslUsername 參數決定）
 
@@ -88,7 +89,7 @@ function Write-Log {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logMessage = "[$timestamp] [$Level] $Message"
 
-    Add-Content -Path $Global:LogFile -Value $logMessage
+    Add-Content -Path $Global:LogFile -Value $logMessage -Encoding utf8
 
     switch ($Level) {
         "Info"    { Write-Host $logMessage -ForegroundColor Cyan }
@@ -116,8 +117,11 @@ function Write-Progress-Log {
 function Test-DistroReady {
     Write-Log "檢查 $Script:DistroName 是否已安裝..."
 
-    $distros = wsl --list --quiet 2>&1
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $distros = & wsl.exe --list --quiet 2>$null
     $found   = $distros | Where-Object { $_ -match [regex]::Escape($Script:DistroName) }
+    $ErrorActionPreference = $oldEap
 
     if (-not $found) {
         Write-Log "$Script:DistroName 尚未安裝，請先執行 setup-ubuntu.ps1" "Error"
@@ -143,8 +147,13 @@ function Invoke-LinuxToolsInstall {
     Write-Log "腳本路徑 (WSL): $wslScriptPath"
 
     # 確認腳本存在
-    wsl -d $Script:DistroName -u root -- test -f $wslScriptPath 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & wsl.exe -d $Script:DistroName -u root -- test -f $wslScriptPath 2>$null | Out-Null
+    $testExit = $LASTEXITCODE
+    $ErrorActionPreference = $oldEap
+
+    if ($testExit -ne 0) {
         Write-Log "找不到安裝腳本: $wslScriptPath" "Error"
         return $false
     }
@@ -169,12 +178,15 @@ function Invoke-LinuxToolsInstall {
     $bashCmd = "export SUDO_USER=$WslUsername TERM=$Script:BashTerm SCRIPT_DIR='$wslScriptDir' DOCKER_TCP_PORT=$Script:DockerPort; sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
 
     # 串流輸出：邊執行邊印，避免長時間無回應看起來像卡住
-    wsl -d $Script:DistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & wsl.exe -d $Script:DistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
         # 過濾掉殘留的 ANSI escape code 再寫入 log
         $line = [regex]::Replace("$_", '\x1b\[[0-9;]*[mKHJ]', '')
         Write-Log $line
     }
     $wslExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $oldEap
 
     if ($wslExitCode -eq 0) {
         Write-Log "Linux 工具安裝完成" "Success"
@@ -206,22 +218,26 @@ function Register-DockerContext {
     }
 
     # 檢查 context 是否已存在
-    $existingContexts = docker context ls --format "{{.Name}}" 2>&1
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $existingContexts = & docker.exe context ls --format "{{.Name}}" 2>$null
     $contextExists = $existingContexts | Where-Object { $_ -eq $ContextName }
 
     if ($contextExists) {
-        docker context update $ContextName --docker "host=$endpoint" 2>&1 | Out-Null
+        & docker.exe context update $ContextName --docker "host=$endpoint" 2>&1 | Out-Null
         Write-Log "已更新 Docker context: $ContextName -> $endpoint" "Success"
     } else {
-        docker context create $ContextName --docker "host=$endpoint" 2>&1 | Out-Null
+        & docker.exe context create $ContextName --docker "host=$endpoint" 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Log "已建立 Docker context: $ContextName -> $endpoint" "Success"
         } else {
             Write-Log "建立 Docker context 失敗，請手動執行：" "Warning"
             Write-Log "  docker context create $ContextName --docker `"host=$endpoint`"" "Info"
+            $ErrorActionPreference = $oldEap
             return
         }
     }
+    $ErrorActionPreference = $oldEap
 
     # DOCKER_HOST 會覆蓋 context，若有設定則自動清除
     $dockerHostEnv = [System.Environment]::GetEnvironmentVariable("DOCKER_HOST", "User")
@@ -242,9 +258,22 @@ function Register-DockerContext {
 
 function Get-ExistingWslDockerPort {
     # 查詢 WSL Docker daemon.json 內已配置的 TCP port
-    $result = wsl -d $Script:DistroName -u root -- bash -c `
-        "grep -oP '""tcp://[^""]*:(\d+)""' /etc/docker/daemon.json 2>/dev/null | grep -oP '\d+$' | head -1" 2>&1
-    if ($LASTEXITCODE -eq 0 -and "$result" -match '^\d+$') {
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+
+    # 若檔案不存在直接回傳 null，避免無謂查詢
+    $checkFile = & wsl.exe -d $Script:DistroName -u root -- test -f /etc/docker/daemon.json 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        $ErrorActionPreference = $oldEap
+        return $null
+    }
+
+    $bashCmd = "grep -o 'tcp://[^:]*:[0-9]*' /etc/docker/daemon.json 2>/dev/null | grep -o '[0-9]*$' | head -1"
+    $result = & wsl.exe -d $Script:DistroName -u root -- bash -c $bashCmd 2>$null
+    $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = $oldEap
+
+    if ($exitCode -eq 0 -and "$result" -match '^\d+$') {
         return $result.Trim()
     }
     return $null
@@ -259,7 +288,10 @@ function Find-AvailableDockerPort {
     # 收集現有 Docker context 已占用的 port
     $usedPorts = @()
     if (Get-Command docker -ErrorAction SilentlyContinue) {
-        $endpoints = docker context ls --format "{{.DockerEndpoint}}" 2>&1
+        $oldEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        $endpoints = & docker.exe context ls --format "{{.DockerEndpoint}}" 2>$null
+        $ErrorActionPreference = $oldEap
         foreach ($ep in $endpoints) {
             if ($ep -match 'tcp://[^:]+:(\d+)') {
                 $usedPorts += [int]$Matches[1]
