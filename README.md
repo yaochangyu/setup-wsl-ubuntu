@@ -56,7 +56,22 @@ cd setup-wsl-ubuntu
 
 ### 推薦流程
 
-一般情況下，只要照下面兩步執行即可：
+你可以選擇**一鍵安裝**或**分步安裝**：
+
+#### 方式一：一鍵安裝（最簡單）
+
+以**系統管理員身分**開啟 PowerShell，執行：
+
+```powershell
+cd D:\lab\setup-wsl-ubuntu
+.\setup-wsl2.ps1
+```
+
+腳本會自動先執行 `setup-wsl2-features.ps1` 啟用 WSL 功能並安裝核心套件，接著自動接續 `setup-ubuntu.ps1` 安裝 Ubuntu 並配置所有開發工具。
+
+---
+
+#### 方式二：分步安裝
 
 1. 先用 `setup-wsl2-features.ps1` 啟用 WSL2 功能
 2. 再用 `setup-ubuntu.ps1` 安裝 Ubuntu，並自動接續安裝開發工具
@@ -403,16 +418,42 @@ sudo ./verify.sh --fix
 所有工具皆已正確安裝！
 ```
 
+## 環境清理與重置
+
+如果你需要**重新測試安裝流程**或**徹底清除已安裝的環境**，可以使用以下腳本：
+
+### Windows 端一鍵清理（移除發行版、重置 WSL）
+
+執行 `uninstall-wsl2.ps1` 可自動註銷 Ubuntu 發行版（釋放硬碟空間並刪除虛擬磁碟）及清理 Docker context：
+
+```powershell
+# 基本移除：移除 Ubuntu 發行版與 Docker context
+.\uninstall-wsl2.ps1
+
+# 徹底重置：移除 Ubuntu、WSL 核心套件本體與日誌（跳過確認直接執行）
+.\uninstall-wsl2.ps1 -RemoveWslPackage -RemoveLogs -Force
+```
+
+### Linux 端工具卸載
+
+若不想刪除 Ubuntu 系統，只希望在 Linux 內部卸載所有開發工具：
+
+```bash
+sudo ./uninstall.sh
+```
+
 ## 檔案結構
 
 ```
 setup-wsl-ubuntu/
+├── setup-wsl2.ps1              # WSL2 + Ubuntu 一鍵安裝總入口（需管理員）
 ├── setup-wsl2-features.ps1     # 步驟 1：啟用 WSL2 Windows 功能（需管理員）
 ├── setup-ubuntu.ps1            # 步驟 2：安裝 Ubuntu + 建立使用者，完成後自動接續安裝工具
 ├── install-linux-tools.ps1     # 開發工具安裝入口（可由 setup-ubuntu 自動呼叫，也可手動重跑）
 ├── install-linux-tools.sh      # 步驟 3：在 Linux 內執行的開發工具安裝腳本
+├── uninstall-wsl2.ps1          # Windows 端一鍵清理 / 移除 WSL2 環境（支援徹底重置）
+├── uninstall.sh                # 在 Linux 內卸載所有已安裝的開發工具
 ├── verify.sh                   # 工具安裝驗證（支援 --fix 自動重裝）
-├── uninstall.sh                # 卸載所有已安裝的開發工具
 ├── config.example.sh           # [已淘汰/過渡] 配置檔範例（請改用 .env.example）
 ├── .env.example                # 環境設定範本（複製為 .env 後填入實際值）
 ├── README.md                   # 本文檔
