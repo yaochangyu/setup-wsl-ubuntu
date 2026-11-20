@@ -234,19 +234,33 @@ function Set-DefaultUser {
             return $false
         }
 
-        # 建立使用者，透過 -c 傳入 bash（比 stdin pipe 更穩定）
+        # 使用者名稱會被拼進 shell 指令，先驗證格式避免注入
+        if ($WslUsername -notmatch '^[a-z_][a-z0-9_-]{0,31}$') {
+            Write-Log "WSL 使用者名稱格式不合法（僅允許小寫字母、數字、_ 與 -）: $WslUsername" "Error"
+            return $false
+        }
+
+        # 建立使用者（不含密碼）。密碼改由 stdin 交給 chpasswd，不出現在命令列或日誌中。
         Write-Log "正在建立使用者 $WslUsername..."
 
         $createCmd = "if ! id -u $WslUsername > /dev/null 2>&1; then " +
                      "useradd -m -s /bin/bash $WslUsername && " +
-                     "echo '${WslUsername}:${WslPassword}' | chpasswd && " +
                      "usermod -aG sudo $WslUsername && " +
                      "echo '$WslUsername ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/$WslUsername && " +
                      "chmod 0440 /etc/sudoers.d/$WslUsername && " +
                      "echo 'User created'; " +
                      "else echo 'User already exists'; fi"
 
-        wsl -d $Script:DistroName -u root -- bash -c $createCmd 2>&1 | ForEach-Object { Write-Log $_ }
+        $createOut = wsl -d $Script:DistroName -u root -- bash -c $createCmd 2>&1
+        $createOut | ForEach-Object { Write-Log $_ }
+
+        if ($createOut -match 'User created') {
+            "${WslUsername}:${WslPassword}" | wsl -d $Script:DistroName -u root -- chpasswd 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Log "設定使用者密碼失敗" "Error"
+                return $false
+            }
+        }
 
         Set-WslConfig
 
@@ -340,7 +354,12 @@ function Main {
         Write-Log "========================================" "Success"
         Write-Log "使用者帳號資訊："
         Write-Log "  使用者名稱: $WslUsername"
-        Write-Log "  密碼: $WslPassword"
+        # 密碼不寫入日誌；使用預設密碼時提醒更換
+        if ($WslPassword -eq 'changeme') {
+            Write-Log "  密碼: 使用預設值 changeme，請儘快更換（於 .env 設定 WSL_PASSWORD）" "Warning"
+        } else {
+            Write-Log "  密碼: 已設定（依 .env 或參數指定，未記錄於日誌）"
+        }
         Write-Log "日誌檔案位置: $Global:LogFile"
 
         # 安裝開發工具
