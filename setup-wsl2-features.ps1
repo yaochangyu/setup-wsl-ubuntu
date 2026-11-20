@@ -32,6 +32,12 @@ $ErrorActionPreference = "Stop"
 $Global:LogFile = ""
 
 # ============================================
+# 環境變數設定
+# ============================================
+$env:WSL_UTF8 = 1   # 強制 wsl.exe 以 UTF-8 輸出，避免文字編碼亂碼
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# ============================================
 # 日誌與輸出函式
 # ============================================
 
@@ -53,7 +59,7 @@ function Write-Log {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logMessage = "[$timestamp] [$Level] $Message"
 
-    Add-Content -Path $Global:LogFile -Value $logMessage
+    Add-Content -Path $Global:LogFile -Value $logMessage -Encoding utf8
 
     switch ($Level) {
         "Info"    { Write-Host $logMessage -ForegroundColor Cyan }
@@ -102,10 +108,13 @@ function Test-VirtualizationEnabled {
 
     try {
         $processor = Get-CimInstance -ClassName Win32_Processor
-        if ($processor.VirtualizationFirmwareEnabled -eq $false) {
-            Write-Log "警告：BIOS/UEFI 中的虛擬化功能未啟用。請在 BIOS 中啟用 Intel VT-x 或 AMD-V。" "Warning"
+        $hypervisorPresent = (Get-CimInstance -ClassName Win32_ComputerSystem).HypervisorPresent
+        $vbs = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue
+
+        if ($processor.VirtualizationFirmwareEnabled -eq $true -or $hypervisorPresent -eq $true -or ($vbs -and $vbs.VirtualizationBasedSecurityStatus -ge 1)) {
+            Write-Log "CPU 虛擬化已啟用 (Hypervisor/VT 正常運作)" "Success"
         } else {
-            Write-Log "CPU 虛擬化已啟用" "Success"
+            Write-Log "警告：BIOS/UEFI 中的虛擬化功能未啟用。請在 BIOS 中啟用 Intel VT-x 或 AMD-V。" "Warning"
         }
         return $true
     }
@@ -182,38 +191,78 @@ function Enable-VirtualMachinePlatform {
 }
 
 function Install-WSL2Kernel {
-    Write-Log "安裝 WSL2 Linux 核心更新..."
+    Write-Log "安裝 / 檢查 WSL2 元件與核心..."
     Write-Progress-Log -Activity "WSL2 功能啟用" -Status "下載並安裝 WSL2 核心" -PercentComplete 75
 
     try {
-        $wslVersion = wsl --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Log "WSL2 核心已安裝" "Success"
+        # 1. 檢查 WSL 是否已安裝且能正常查詢狀態
+        $oldEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        $statusOutput = & wsl.exe --status 2>&1
+        $statusExit = $LASTEXITCODE
+        $ErrorActionPreference = $oldEap
+
+        if ($statusExit -eq 0) {
+            Write-Log "WSL2 核心已安裝且運作正常" "Success"
             return $true
         }
 
-        Write-Log "正在更新 WSL2 核心..."
-        wsl --update 2>&1 | ForEach-Object { Write-Log $_ }
+        # 2. Windows 11 / 新版 Windows 優先嘗試使用 wsl --install --no-distribution
+        Write-Log "WSL 尚未安裝或未就緒，正在執行 wsl --install --no-distribution..."
+        $oldEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        & wsl.exe --install --no-distribution 2>&1 | ForEach-Object { Write-Log $_ }
+        $installExit = $LASTEXITCODE
+        $ErrorActionPreference = $oldEap
 
-        if ($LASTEXITCODE -eq 0) {
-            Write-Log "WSL2 核心更新完成" "Success"
-            return $true
-        } else {
-            Write-Log "WSL2 核心更新失敗，嘗試手動下載..." "Warning"
-
-            $kernelUrl = "https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi"
-            $kernelInstaller = Join-Path $env:TEMP "wsl_update_x64.msi"
-
-            Write-Log "下載 WSL2 核心更新檔案..."
-            Invoke-WebRequest -Uri $kernelUrl -OutFile $kernelInstaller -UseBasicParsing
-
-            Write-Log "安裝 WSL2 核心..."
-            Start-Process msiexec.exe -ArgumentList "/i `"$kernelInstaller`" /quiet /norestart" -Wait
-
-            Remove-Item $kernelInstaller -Force
-            Write-Log "WSL2 核心安裝完成" "Success"
+        if ($installExit -eq 0) {
+            Write-Log "WSL 元件安裝完成" "Success"
             return $true
         }
+
+        # 3. 嘗試使用 wsl --update --web-download 進行更新/安裝
+        Write-Log "wsl --install 未成功，嘗試使用 wsl --update --web-download..." "Warning"
+        $oldEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        & wsl.exe --update --web-download 2>&1 | ForEach-Object { Write-Log $_ }
+        $updateExit = $LASTEXITCODE
+        $ErrorActionPreference = $oldEap
+
+        if ($updateExit -eq 0) {
+            Write-Log "WSL 核心更新完成" "Success"
+            return $true
+        }
+
+        # 4. 若系統有 winget，嘗試透過 winget 安裝 Microsoft.WSL
+        $wingetCmd = Get-Command winget.exe -ErrorAction SilentlyContinue
+        if ($wingetCmd) {
+            Write-Log "嘗試透過 winget 安裝 Microsoft.WSL..." "Info"
+            $oldEap = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            & winget.exe install Microsoft.WSL --source winget --accept-package-agreements --accept-source-agreements 2>&1 | ForEach-Object { Write-Log $_ }
+            $wingetExit = $LASTEXITCODE
+            $ErrorActionPreference = $oldEap
+
+            if ($wingetExit -eq 0) {
+                Write-Log "透過 winget 安裝 WSL 完成" "Success"
+                return $true
+            }
+        }
+
+        # 5. 舊版 Windows 10 回退方案：手動下載 MSI 更新套件
+        Write-Log "線上安裝均未成功，嘗試手動下載 WSL2 核心 MSI..." "Warning"
+        $kernelUrl = "https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi"
+        $kernelInstaller = Join-Path $env:TEMP "wsl_update_x64.msi"
+
+        Write-Log "下載 WSL2 核心更新檔案..."
+        Invoke-WebRequest -Uri $kernelUrl -OutFile $kernelInstaller -UseBasicParsing
+
+        Write-Log "安裝 WSL2 核心..."
+        Start-Process msiexec.exe -ArgumentList "/i `"$kernelInstaller`" /quiet /norestart" -Wait
+
+        Remove-Item $kernelInstaller -Force -ErrorAction SilentlyContinue
+        Write-Log "WSL2 核心 MSI 安裝完成" "Success"
+        return $true
     }
     catch {
         Write-Log "安裝 WSL2 核心失敗: $($_.Exception.Message)" "Error"
@@ -226,9 +275,13 @@ function Set-WSL2AsDefault {
     Write-Progress-Log -Activity "WSL2 功能啟用" -Status "設定 WSL2 為預設版本" -PercentComplete 90
 
     try {
-        wsl --set-default-version 2 2>&1 | ForEach-Object { Write-Log $_ }
+        $oldEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        & wsl.exe --set-default-version 2 2>&1 | ForEach-Object { Write-Log $_ }
+        $exitCode = $LASTEXITCODE
+        $ErrorActionPreference = $oldEap
 
-        if ($LASTEXITCODE -eq 0) {
+        if ($exitCode -eq 0) {
             Write-Log "WSL2 已設為預設版本" "Success"
             return $true
         } else {

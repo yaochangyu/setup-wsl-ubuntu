@@ -51,6 +51,7 @@ $Global:LogFile    = ""
 # 環境變數設定
 # ============================================
 $env:WSL_UTF8 = 1   # 強制 wsl.exe 以 UTF-8 輸出，避免 wsl --list 亂碼
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # ============================================
 # 日誌與輸出函式
@@ -88,7 +89,7 @@ function Write-Log {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logMessage = "[$timestamp] [$Level] $Message"
 
-    Add-Content -Path $Global:LogFile -Value $logMessage
+    Add-Content -Path $Global:LogFile -Value $logMessage -Encoding utf8
 
     switch ($Level) {
         "Info"    { Write-Host $logMessage -ForegroundColor Cyan }
@@ -118,9 +119,26 @@ function Install-Distro {
     Write-Progress-Log -Activity "WSL 安裝" -Status "安裝 $Script:DistroName" -PercentComplete 20
 
     try {
+        # 檢查 WSL 是否已安裝就緒
+        $oldEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        & wsl.exe --status 2>$null | Out-Null
+        $wslStatusExit = $LASTEXITCODE
+        $ErrorActionPreference = $oldEap
+
+        if ($wslStatusExit -ne 0) {
+            Write-Log "WSL 核心/套件尚未安裝或未就緒！" "Error"
+            Write-Log "請先以「系統管理員身分」執行 .\setup-wsl2-features.ps1，或直接執行 .\setup-wsl2.ps1" "Warning"
+            return $false
+        }
+
         # 檢查是否已安裝目標發行版
-        $existingTarget = wsl --list --quiet 2>&1 |
+        $oldEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        $existingTarget = & wsl.exe --list --quiet 2>$null |
             Where-Object { $_ -match [regex]::Escape($Script:DistroName) }
+        $ErrorActionPreference = $oldEap
+
         if ($existingTarget) {
             Write-Log "$Script:DistroName 已安裝，跳過安裝步驟" "Success"
             return $true
@@ -129,9 +147,13 @@ function Install-Distro {
         # 步驟 1: 下載並註冊 distro（--no-launch 避免互動式提示）
         Write-Log "正在下載 $Script:DistroName..."
         Write-Log "執行命令: wsl --install -d $Script:DistroName --no-launch"
-        & wsl --install -d $Script:DistroName --no-launch 2>&1 | ForEach-Object { Write-Log $_ }
+        $oldEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        & wsl.exe --install -d $Script:DistroName --no-launch 2>&1 | ForEach-Object { Write-Log $_ }
+        $installExit = $LASTEXITCODE
+        $ErrorActionPreference = $oldEap
 
-        if ($LASTEXITCODE -ne 0) {
+        if ($installExit -ne 0) {
             Write-Log "wsl --install 失敗" "Error"
             Write-Log "請嘗試手動執行: wsl --install -d $Script:DistroName" "Warning"
             return $false
@@ -139,8 +161,12 @@ function Install-Distro {
 
         $registered = $false
         for ($attempt = 1; $attempt -le 15; $attempt++) {
-            $registered = wsl --list --quiet 2>&1 |
+            $oldEap = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            $registered = & wsl.exe --list --quiet 2>$null |
                 Where-Object { $_ -match [regex]::Escape($Script:DistroName) }
+            $ErrorActionPreference = $oldEap
+
             if ($registered) {
                 break
             }
