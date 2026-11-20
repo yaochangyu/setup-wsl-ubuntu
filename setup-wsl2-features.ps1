@@ -29,6 +29,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"  # 關閉 Write-Progress 視覺元件以防終端排版偏斜與殘影
 $Global:LogFile = ""
 
 # ============================================
@@ -56,16 +57,19 @@ function Write-Log {
         [string]$Level = "Info"
     )
 
+    $cleanMessage = if ($null -ne $Message) { $Message.Trim() } else { "" }
+    if ([string]::IsNullOrWhiteSpace($cleanMessage)) { return }
+
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logMessage = "[$timestamp] [$Level] $Message"
+    $logMessage = "[$timestamp] [$Level] $cleanMessage"
 
     Add-Content -Path $Global:LogFile -Value $logMessage -Encoding utf8
 
     switch ($Level) {
-        "Info"    { Write-Host $logMessage -ForegroundColor Cyan }
-        "Warning" { Write-Host $logMessage -ForegroundColor Yellow }
-        "Error"   { Write-Host $logMessage -ForegroundColor Red }
-        "Success" { Write-Host $logMessage -ForegroundColor Green }
+        "Info"    { Write-Host "`r$logMessage" -ForegroundColor Cyan }
+        "Warning" { Write-Host "`r$logMessage" -ForegroundColor Yellow }
+        "Error"   { Write-Host "`r$logMessage" -ForegroundColor Red }
+        "Success" { Write-Host "`r$logMessage" -ForegroundColor Green }
     }
 }
 
@@ -76,7 +80,6 @@ function Write-Progress-Log {
         [int]$PercentComplete
     )
 
-    Write-Progress -Activity $Activity -Status $Status -PercentComplete $PercentComplete
     Write-Log "$Activity - $Status ($PercentComplete%)"
 }
 

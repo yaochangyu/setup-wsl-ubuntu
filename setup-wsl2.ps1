@@ -43,6 +43,11 @@ param(
     [string]$LogPath     = "$PSScriptRoot\logs"
 )
 
+$ErrorActionPreference = "Stop"
+$ProgressPreference    = "SilentlyContinue"
+$env:WSL_UTF8          = 1
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "WSL2 Ubuntu 一鍵安裝程式" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
