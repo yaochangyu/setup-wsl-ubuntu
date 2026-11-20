@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     安裝並設定 WSL Ubuntu（不需要管理員權限）
 
