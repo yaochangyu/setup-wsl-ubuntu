@@ -183,37 +183,7 @@ function Install-Distro {
             return $false
         }
 
-        # Ubuntu 發行版的 App Execution Alias 可能需要一點時間才會出現。
-        # 若 launcher 尚未就緒，改用 wsl -d ... -u root 觸發首次初始化，避免第一次執行失敗。
-        if ($Script:DistroName -match '^Ubuntu-(\d+\.\d+)$') {
-            $ubuntuExe = "ubuntu$($Matches[1].Replace('.',''))"
-            $launcher = $null
-
-            for ($attempt = 1; $attempt -le 5; $attempt++) {
-                $launcher = Get-Command $ubuntuExe -ErrorAction SilentlyContinue
-                if ($launcher) {
-                    break
-                }
-
-                Write-Log "等待 $ubuntuExe launcher 可用... ($attempt/5)"
-                Start-Sleep -Seconds 2
-            }
-
-            if ($launcher) {
-                Write-Log "初始化 $Script:DistroName（使用 $ubuntuExe install --root）..."
-                & $launcher.Source install --root 2>&1 | ForEach-Object { Write-Log $_ }
-
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Log "$Script:DistroName 安裝並初始化完成" "Success"
-                    return $true
-                }
-
-                Write-Log "$ubuntuExe install --root 失敗 (exit code: $LASTEXITCODE)，改用 wsl 指令初始化" "Warning"
-            } else {
-                Write-Log "找不到 $ubuntuExe launcher，改用 wsl 指令初始化" "Warning"
-            }
-        }
-
+        # 不依賴 App Execution Alias（ubuntu2404.exe）：它可能不會出現，改用 wsl -d ... -u root 觸發首次初始化。
         Write-Log "初始化 $Script:DistroName（使用 wsl -d $Script:DistroName -u root -- /bin/sh -lc true）..."
         & wsl -d $Script:DistroName -u root -- /bin/sh -lc "true" 2>&1 | ForEach-Object { Write-Log $_ }
 

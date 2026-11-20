@@ -781,6 +781,9 @@ install_zoxide() {
     # 安裝器預設放在 ~/.local/bin，確保加入 PATH
     local zoxide_bin="${user_home}/.local/bin/zoxide"
     if [[ -x "${zoxide_bin}" ]]; then
+        # 目前執行中的安裝程序 PATH 不含 ~/.local/bin（.bashrc 只影響之後的 shell），
+        # 必須立即加入，否則後面的 command -v 驗證會誤判為未安裝
+        export PATH="${user_home}/.local/bin:${PATH}"
         # zoxide init 必須在 ~/.local/bin 加入 PATH 之後才會被找到，先確保 PATH 已寫入
         if ! grep -q '\.local/bin' "${user_home}/.bashrc" 2>/dev/null; then
             echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${user_home}/.bashrc"
