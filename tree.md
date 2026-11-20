@@ -17,6 +17,7 @@ setup-wsl-ubuntu/
 ├── setup-ubuntu.ps1
 ├── setup-wsl2-features.ps1
 ├── setup-wsl2.ps1
+├── uninstall-wsl2.ps1
 ├── uninstall.sh
 ├── verify.sh
 ├── wsl2-ubuntu-setup-plan.md

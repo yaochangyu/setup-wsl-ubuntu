@@ -420,23 +420,72 @@ sudo ./verify.sh --fix
 
 ## 環境清理與重置
 
-如果你需要**重新測試安裝流程**或**徹底清除已安裝的環境**，可以使用以下腳本：
+如果你需要**重新測試安裝流程**或**徹底清除已安裝的環境**，可以使用專案提供的清理工具。
 
-### Windows 端一鍵清理（移除發行版、重置 WSL）
+### Windows 端一鍵清理 (`uninstall-wsl2.ps1`)
 
-執行 `uninstall-wsl2.ps1` 可自動註銷 Ubuntu 發行版（釋放硬碟空間並刪除虛擬磁碟）及清理 Docker context：
+[uninstall-wsl2.ps1](file:///F:/lab/setup-wsl-ubuntu/uninstall-wsl2.ps1) 專為 Windows 端設計，可一鍵註銷發行版、清理虛擬硬碟與 Docker Context，並支援將 WSL 徹底回復為未安裝狀態：
+
+#### 核心功能
+* **註銷並刪除發行版**：執行 `wsl --unregister`，立即刪除對應的 `.vhdx` 虛擬磁碟並釋放硬碟空間。
+* **清理 Docker Context**：自動移除 Windows 端對應的 Docker endpoint context 設定。
+* **徹底回復未安裝狀態（可選）**：透過 `winget` 解除安裝 `Microsoft.WSL` 套件本體。
+* **歷史日誌清理（可選）**：一鍵清空 `logs/` 目錄下的測試日誌。
+
+#### 參數說明
+
+| 參數 | 類型 | 說明 | 預設值 |
+| :--- | :--- | :--- | :--- |
+| `-DistroName` | 字串 | 欲移除的發行版名稱 | 讀取 `.env` 或 `Ubuntu-24.04` |
+| `-RemoveWslPackage` | Switch | 是否連同解除安裝 Windows 的 `Microsoft.WSL` 核心套件本體 | 否（保留 WSL 平台） |
+| `-RemoveLogs` | Switch | 是否清空 `logs\` 目錄下的歷史 `.log` 檔案 | 否 |
+| `-Force` | Switch | 跳過互動式安全確認提示（輸入 YES），直接執行清理 | 否 |
+| `-LogPath` | 字串 | 自訂日誌存放目錄 | `.\logs` |
+
+#### 使用範例
 
 ```powershell
-# 基本移除：移除 Ubuntu 發行版與 Docker context
+# 1. 基本移除（互動式確認後移除 Ubuntu-24.04 與 Docker context）
 .\uninstall-wsl2.ps1
 
-# 徹底重置：移除 Ubuntu、WSL 核心套件本體與日誌（跳過確認直接執行）
+# 2. 指定發行版名稱移除
+.\uninstall-wsl2.ps1 -DistroName Ubuntu-22.04
+
+# 3. 徹底重置（移除 Ubuntu、WSL 核心套件本體與日誌，跳過確認）
 .\uninstall-wsl2.ps1 -RemoveWslPackage -RemoveLogs -Force
 ```
 
-### Linux 端工具卸載
+---
 
-若不想刪除 Ubuntu 系統，只希望在 Linux 內部卸載所有開發工具：
+### 端到端乾淨重測工作流（砍掉重來驗證）
+
+此流程特別適合在修改專案腳本後，檢驗自動化腳本是否具備**「從零到有一鍵自動完成」**的端到端（End-to-End）穩定性：
+
+#### 步驟 1：執行一鍵徹底清理
+以**系統管理員身分**在 PowerShell 執行：
+```powershell
+.\uninstall-wsl2.ps1 -RemoveWslPackage -RemoveLogs -Force
+```
+*執行後，發行版虛擬硬碟、Docker Context、WSL 套件本體與舊日誌將全部清除，回復至全新乾淨狀態。*
+
+#### 步驟 2：執行一鍵端到端全新安裝
+清理完成後，在系統管理員 PowerShell 中執行一鍵入口腳本：
+```powershell
+.\setup-wsl2.ps1
+```
+腳本將依序自動完成並驗證以下所有項目：
+1. **WSL2 Windows 功能與核心套件安裝**（自動相容 Windows 11 與核心隔離/Hypervisor 環境）。
+2. **Ubuntu 發行版下載與註冊**。
+3. **使用者帳號建立與系統設定**（自動設定預設使用者 `yao` 與 `/etc/wsl.conf`）。
+4. **開發工具全自動安裝**（Docker、.NET、Node.js、Python、Go、Rust、DevOps 與 CLI 工具）。
+5. **Windows Docker Context 建立**。
+6. **乾淨無偏斜的終端日誌排版**。
+
+---
+
+### Linux 端工具卸載 (`uninstall.sh`)
+
+若保留 Ubuntu 系統，僅需在 Linux 內部卸載所有開發工具與開發套件，可直接在 WSL 終端執行：
 
 ```bash
 sudo ./uninstall.sh
