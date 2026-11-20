@@ -18,6 +18,7 @@
 # 使用方式：
 #   sudo ./update.sh               # 更新全部
 #   sudo ./update.sh --skip-apt    # 跳過 apt 系統套件
+#   sudo ./update.sh --apt-only    # 只更新 apt 系統套件（安裝流程使用）
 #
 # 安全說明：
 #   - 需要 root 權限執行 apt；其餘工具以實際使用者身分執行（SUDO_USER），不以 root 執行使用者層級工具。
@@ -37,6 +38,7 @@ readonly COLOR_YELLOW='\033[0;33m'
 readonly COLOR_CYAN='\033[0;36m'
 
 SKIP_APT=false
+APT_ONLY=false
 declare -a OK_STEPS=()
 declare -a FAILED_STEPS=()
 declare -a SKIPPED_STEPS=()
@@ -120,6 +122,7 @@ skip_step() {
 for arg in "$@"; do
     case "${arg}" in
         --skip-apt) SKIP_APT=true ;;
+        --apt-only) APT_ONLY=true ;;
         -h|--help)  usage; exit 0 ;;
         *)
             error "未知參數: ${arg}"
@@ -215,13 +218,17 @@ else
     run_step "apt 系統套件" update_apt
 fi
 
-run_optional_step "npm 全域套件（codex、copilot）" update_npm_globals
-run_optional_step "Rust（rustup）" update_rust
-run_optional_step "pyenv" update_pyenv
-run_optional_step "Claude Code" update_claude_code
-run_optional_step "OpenCode" update_opencode
-skip_step "Antigravity（agy）" "目前無已知的自動更新指令"
-skip_step "Hermes Agent" "目前無已知的自動更新指令"
+if [[ "${APT_ONLY}" == true ]]; then
+    skip_step "開發工具（npm、Rust、pyenv、Claude Code、OpenCode）" "--apt-only"
+else
+    run_optional_step "npm 全域套件（codex、copilot）" update_npm_globals
+    run_optional_step "Rust（rustup）" update_rust
+    run_optional_step "pyenv" update_pyenv
+    run_optional_step "Claude Code" update_claude_code
+    run_optional_step "OpenCode" update_opencode
+    skip_step "Antigravity（agy）" "目前無已知的自動更新指令"
+    skip_step "Hermes Agent" "目前無已知的自動更新指令"
+fi
 
 print_header "更新摘要"
 echo -e "${COLOR_GREEN}成功（${#OK_STEPS[@]}）${COLOR_RESET}: ${OK_STEPS[*]:-無}"

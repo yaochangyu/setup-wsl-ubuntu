@@ -41,6 +41,7 @@ param(
     [string]$WslPassword   = "",   # 優先順序：參數 > .env WSL_PASSWORD > "changeme"
     [string]$Proxy         = "",
     [switch]$SkipVerify,
+    [switch]$SkipUpdate,   # 略過安裝前的 WSL 與發行版更新（wsl --update + apt upgrade）
     [string]$LogPath       = "$PSScriptRoot\logs"
 )
 
@@ -305,6 +306,35 @@ function Test-Installation {
     }
 }
 
+function Update-Distro {
+    # 只更新 Ubuntu 內的 apt 套件（update.sh --apt-only）；失敗只記錄警告，不中止安裝流程
+    Write-Log "更新 Ubuntu 系統套件（apt update / upgrade）..." "Info"
+
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $linuxDir = (& wsl.exe -d $Script:DistroName -u root -- wslpath -a "$PSScriptRoot" 2>$null | Out-String).Trim()
+        if (-not $linuxDir) {
+            Write-Log "無法將 Windows 路徑轉換為 WSL 路徑，略過 apt 更新" "Warning"
+            return
+        }
+
+        # 以 root 執行 update.sh，SUDO_USER 指定 WSL 使用者
+        & wsl.exe -d $Script:DistroName -u root -- env "SUDO_USER=$WslUsername" bash "$linuxDir/update.sh" --apt-only 2>&1 | ForEach-Object { Write-Log $_ }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "apt 更新有失敗項目（詳見日誌），繼續安裝" "Warning"
+        } else {
+            Write-Log "Ubuntu 系統套件更新完成" "Success"
+        }
+    }
+    catch {
+        Write-Log "更新過程發生錯誤，已略過並繼續安裝: $($_.Exception.Message)" "Warning"
+    }
+    finally {
+        $ErrorActionPreference = $oldEap
+    }
+}
+
 # ============================================
 # 主要執行流程
 # ============================================
@@ -361,6 +391,13 @@ function Main {
             Write-Log "  密碼: 已設定（依 .env 或參數指定，未記錄於日誌）"
         }
         Write-Log "日誌檔案位置: $Global:LogFile"
+
+        # 安裝前先更新：WSL 本體與發行版套件，讓後續開發工具以最新狀態安裝
+        if (-not $SkipUpdate) {
+            Update-Distro
+        } else {
+            Write-Log "略過安裝前更新（-SkipUpdate）" "Info"
+        }
 
         # 安裝開發工具
         Write-Log "========================================" "Info"
