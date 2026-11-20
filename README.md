@@ -405,8 +405,10 @@ sudo ./verify.sh --fix
 ── AI CLI 工具 ──
   ✓ claude
   ✓ codex
-  ✓ gemini
+  ✓ agy
   ✓ copilot
+  ✓ opencode
+  ✓ hermes
 
 ========================================
 驗證結果

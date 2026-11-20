@@ -713,9 +713,70 @@ install_codex_cli() {
     npm_global_install "@openai/codex" "codex"
 }
 
-# 安裝 Gemini CLI（Google）
-install_gemini_cli() {
-    npm_global_install "@google/gemini-cli" "gemini"
+# 原生安裝器共用輔助函式（curl | bash，以實際使用者身分執行）
+# 安裝後把安裝目錄加入目前 PATH 與 ~/.bashrc，讓後續的 command -v 驗證能找到
+# 用法：native_cli_install "顯示名稱" "安裝器 URL" "指令名稱"
+native_cli_install() {
+    local display_name="$1"
+    local installer_url="$2"
+    local bin_name="$3"
+
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home
+    user_home=$(eval echo ~"${actual_user}")
+
+    if command -v "${bin_name}" &> /dev/null \
+        || [[ -x "${user_home}/.local/bin/${bin_name}" ]] \
+        || [[ -x "${user_home}/.opencode/bin/${bin_name}" ]]; then
+        info "${display_name} 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 ${display_name}..."
+    sudo -u "${actual_user}" bash -c "curl -fsSL '${installer_url}' | bash" >> "${LOG_FILE}" 2>&1 || true
+
+    local bin_dir rel_dir
+    for bin_dir in "${user_home}/.local/bin" "${user_home}/.opencode/bin"; do
+        if [[ -x "${bin_dir}/${bin_name}" ]]; then
+            export PATH="${bin_dir}:${PATH}"
+            rel_dir="${bin_dir#"${user_home}"/}"
+            if ! grep -qF "${rel_dir}" "${user_home}/.bashrc" 2>/dev/null; then
+                echo "export PATH=\"\$HOME/${rel_dir}:\$PATH\"" >> "${user_home}/.bashrc"
+                info "已將 ~/${rel_dir} 加入 ~/.bashrc PATH"
+            fi
+            success "${display_name} 安裝完成"
+            return 0
+        fi
+    done
+
+    warning "${display_name} 安裝失敗"
+    return 1
+}
+
+# 安裝 Antigravity CLI（Google，二進位指令為 agy；取代已過時的 gemini-cli）
+install_antigravity_cli() {
+    local actual_user="${SUDO_USER:-$USER}"
+    local user_home
+    user_home=$(eval echo ~"${actual_user}")
+    local nvm_sh="${user_home}/.nvm/nvm.sh"
+
+    # 舊版 gemini-cli（npm）若存在，先移除避免兩者並存
+    if [[ -s "${nvm_sh}" ]] && sudo -u "${actual_user}" bash -c "source '${nvm_sh}' && npm list -g '@google/gemini-cli'" &> /dev/null; then
+        info "移除已過時的 @google/gemini-cli..."
+        sudo -u "${actual_user}" bash -c "source '${nvm_sh}' && npm uninstall -g '@google/gemini-cli'" >> "${LOG_FILE}" 2>&1 || true
+    fi
+
+    native_cli_install "Antigravity CLI" "https://antigravity.google/cli/install.sh" "agy"
+}
+
+# 安裝 OpenCode（sst/anomalyco 開源終端 AI 編碼代理）
+install_opencode_cli() {
+    native_cli_install "OpenCode" "https://opencode.ai/install" "opencode"
+}
+
+# 安裝 Hermes Agent（Nous Research）
+install_hermes_agent() {
+    native_cli_install "Hermes Agent" "https://hermes-agent.nousresearch.com/install.sh" "hermes"
 }
 
 # 安裝 GitHub Copilot CLI
@@ -1085,8 +1146,10 @@ install_ai_cli_tools() {
 
     install_claude_code || true
     install_codex_cli || true
-    install_gemini_cli || true
+    install_antigravity_cli || true
     install_copilot_cli || true
+    install_opencode_cli || true
+    install_hermes_agent || true
 
     # 驗證安裝
     local actual_user="${SUDO_USER:-$USER}"
@@ -1104,11 +1167,21 @@ install_ai_cli_tools() {
     fi
 
     # npm 全域套件（使用 npm list -g 檢查，與安裝時的跳過檢查一致）
-    local npm_tools=("@openai/codex:codex" "@google/gemini-cli:gemini" "@github/copilot:copilot")
+    local npm_tools=("@openai/codex:codex" "@github/copilot:copilot")
     for entry in "${npm_tools[@]}"; do
         local pkg="${entry%%:*}"
         local name="${entry##*:}"
         if sudo -u "${actual_user}" bash -c "source '${nvm_sh}' && npm list -g '${pkg}'" &> /dev/null; then
+            echo "  ✓ ${name}" | tee -a "${LOG_FILE}"
+        else
+            echo "  ✗ ${name}" | tee -a "${LOG_FILE}"
+        fi
+    done
+
+    # 原生安裝器工具（檢查 ~/.local/bin 或 ~/.opencode/bin）
+    local native_tools=("agy" "opencode" "hermes")
+    for name in "${native_tools[@]}"; do
+        if [[ -x "${user_home}/.local/bin/${name}" ]] || [[ -x "${user_home}/.opencode/bin/${name}" ]]; then
             echo "  ✓ ${name}" | tee -a "${LOG_FILE}"
         else
             echo "  ✗ ${name}" | tee -a "${LOG_FILE}"
@@ -1216,7 +1289,10 @@ export -f install_glab
 export -f npm_global_install
 export -f install_claude_code
 export -f install_codex_cli
-export -f install_gemini_cli
+export -f native_cli_install
+export -f install_antigravity_cli
+export -f install_opencode_cli
+export -f install_hermes_agent
 export -f install_copilot_cli
 export -f setup_bat_symlink
 export -f install_oh_my_zsh

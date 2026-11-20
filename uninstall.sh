@@ -34,7 +34,7 @@ echo "  - Python (pyenv)"
 echo "  - Go"
 echo "  - Rust"
 echo "  - DevOps 工具 (kubectl, helm, terraform, az)"
-echo "  - AI CLI 工具 (claude, codex, gemini, copilot)"
+echo "  - AI CLI 工具 (claude, codex, agy, copilot, opencode, hermes)"
 echo "  - CLI 工具"
 echo ""
 echo -e "${COLOR_YELLOW}此操作無法復原！${COLOR_RESET}"
@@ -85,7 +85,12 @@ echo "移除 AI CLI 工具..."
 if [[ -x "${user_home}/.local/bin/claude" ]]; then
     rm -f "${user_home}/.local/bin/claude" 2>/dev/null || true
 fi
-# npm 全域套件（Codex、Gemini、Copilot）
+# 原生安裝器工具（Antigravity agy、OpenCode、Hermes）
+for name in agy opencode hermes; do
+    rm -f "${user_home}/.local/bin/${name}" 2>/dev/null || true
+done
+rm -rf "${user_home}/.opencode" 2>/dev/null || true
+# npm 全域套件（Codex、Copilot；gemini-cli 舊版若殘留一併移除）
 if [[ "${actual_user}" != "root" ]] && [[ -s "${user_home}/.nvm/nvm.sh" ]]; then
     sudo -u "${actual_user}" bash -c "source '${user_home}/.nvm/nvm.sh' && npm uninstall -g @openai/codex @google/gemini-cli @github/copilot" >> "${LOG_FILE}" 2>&1 || true
 fi

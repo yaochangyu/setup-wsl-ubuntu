@@ -304,8 +304,20 @@ check_ai_cli() {
         check_fail "claude" "install_claude_code"
     fi
 
+    # 原生安裝器工具（Antigravity、OpenCode、Hermes）
+    local native_tools=("agy:install_antigravity_cli" "opencode:install_opencode_cli" "hermes:install_hermes_agent")
+    for entry in "${native_tools[@]}"; do
+        local name="${entry%%:*}"
+        local fix_fn="${entry#*:}"
+        if [[ -x "${user_home}/.local/bin/${name}" ]] || [[ -x "${user_home}/.opencode/bin/${name}" ]]; then
+            check_pass "${name}"
+        else
+            check_fail "${name}" "${fix_fn}"
+        fi
+    done
+
     # npm 全域套件
-    local npm_tools=("@openai/codex:codex:install_codex_cli" "@google/gemini-cli:gemini:install_gemini_cli" "@github/copilot:copilot:install_copilot_cli")
+    local npm_tools=("@openai/codex:codex:install_codex_cli" "@github/copilot:copilot:install_copilot_cli")
     for entry in "${npm_tools[@]}"; do
         local pkg="${entry%%:*}"
         local rest="${entry#*:}"
