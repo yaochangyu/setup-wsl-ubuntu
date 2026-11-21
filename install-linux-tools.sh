@@ -252,6 +252,16 @@ handle_error() {
 
 trap 'handle_error ${LINENO} $?' ERR
 
+# 使用者中止（Ctrl+C / 終端關閉）：整支腳本立即結束，不繼續安裝下一個工具。
+# 注意：bash 會等前景指令（例如原生安裝器）結束後才執行 trap，因此中止會在該指令結束時生效。
+on_user_abort() {
+    error "使用者中止安裝（收到中斷訊號）"
+    error "已安裝的項目保留，可重新執行腳本或用 verify.sh --fix 接續"
+    exit 130
+}
+
+trap on_user_abort INT TERM HUP
+
 # 檢查是否為 root 使用者
 check_root() {
     if [[ $EUID -ne 0 ]]; then
