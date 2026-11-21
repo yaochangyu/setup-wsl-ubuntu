@@ -736,6 +736,14 @@ native_cli_install() {
 
     # 安裝器以 process substitution 執行，stdin 指向 /dev/null：避免安裝器內的指令吃掉腳本內容或等待輸入。
     # 輸出同時顯示在畫面與日誌。
+    # 確保 ~/.local/bin 存在且 ~/.local、~/.local/bin 由實際使用者擁有（若曾被 root 建立，安裝器會無法寫入）
+    if [[ "${EUID}" -eq 0 ]]; then
+        mkdir -p "${user_home}/.local/bin" 2>> "${LOG_FILE}" || true
+        chown "${actual_user}:${actual_user}" "${user_home}/.local" "${user_home}/.local/bin" 2>> "${LOG_FILE}" || true
+    else
+        mkdir -p "${user_home}/.local/bin" 2>> "${LOG_FILE}" || true
+    fi
+
     info "安裝 ${display_name}（進度同時寫入日誌）..."
     sudo -u "${actual_user}" bash -c "bash <(curl -fsSL '${installer_url}') ${installer_args} </dev/null" 2>&1 \
         | tee -a "${LOG_FILE}" || true
@@ -754,7 +762,7 @@ native_cli_install() {
         fi
     done
 
-    warning "${display_name} 安裝失敗"
+    warning "${display_name} 安裝失敗（詳見日誌: ${LOG_FILE}）"
     return 1
 }
 
@@ -790,35 +798,9 @@ install_copilot_cli() {
     npm_global_install "@github/copilot" "copilot"
 }
 
-# 安裝 Claude Code（Anthropic 原生安裝器，不需 npm）
+# 安裝 Claude Code（Anthropic 原生安裝器，不需 npm；共用 native_cli_install 流程）
 install_claude_code() {
-    if command -v claude &> /dev/null; then
-        info "Claude Code 已安裝，跳過"
-        return 0
-    fi
-
-    info "安裝 Claude Code..."
-
-    local actual_user="${SUDO_USER:-$USER}"
-    local user_home
-    user_home=$(eval echo ~"${actual_user}")
-
-    sudo -u "${actual_user}" bash -c \
-        'curl -fsSL https://claude.ai/install.sh | bash' \
-        >> "${LOG_FILE}" 2>&1
-
-    # 安裝器將 claude 放在 ~/.local/bin，確保加入 PATH
-    local claude_bin="${user_home}/.local/bin"
-    if [[ -x "${claude_bin}/claude" ]]; then
-        if ! grep -q '\.local/bin' "${user_home}/.bashrc" 2>/dev/null; then
-            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${user_home}/.bashrc"
-            info "已將 ~/.local/bin 加入 ~/.bashrc PATH"
-        fi
-        success "Claude Code 安裝完成"
-    else
-        warning "Claude Code 安裝失敗"
-        return 1
-    fi
+    native_cli_install "Claude Code" "https://claude.ai/install.sh" "claude"
 }
 
 # 設定 bat 符號連結（Ubuntu 套件名為 batcat）
