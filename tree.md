@@ -3,6 +3,8 @@
 ```text
 setup-wsl-ubuntu/
 ├── .env.example
+├── .gitattributes
+├── .gitignore
 ├── .archive/
 │   ├── add-modern-cli-tools.plan.md
 │   └── config-to-env-migration.plan.md
@@ -19,6 +21,8 @@ setup-wsl-ubuntu/
 ├── setup-wsl2.ps1
 ├── uninstall-wsl2.ps1
 ├── uninstall.sh
+├── update-wsl2.ps1
+├── update.sh
 ├── verify.sh
 ├── wsl2-ubuntu-setup-plan.md
 ├── tree.md

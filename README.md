@@ -102,6 +102,8 @@ cd D:\lab\setup-wsl-ubuntu
 
 `setup-ubuntu.ps1` 完成 Ubuntu 安裝後，若同目錄存在 `install-linux-tools.ps1`，會自動接續安裝開發工具，因此多數情況不需要再手動執行下一步。
 
+安裝開發工具前，`setup-ubuntu.ps1` 會先以 `update.sh --apt-only` 更新 Ubuntu 的 apt 套件（`apt-get update`、`upgrade`、`autoremove`），讓後續工具以最新的系統套件安裝。此步驟失敗只會記錄警告，不會中止安裝；如要略過，加上 `-SkipUpdate`。
+
 如需直接指定：
 
 ```powershell
@@ -185,8 +187,10 @@ WSL_PASSWORD=your_password
 ### AI CLI 工具
 - ✅ **Claude Code** - Anthropic CLI（原生安裝器）
 - ✅ **Codex CLI** - OpenAI CLI
-- ✅ **Gemini CLI** - Google CLI
+- ✅ **Antigravity CLI**（`agy`）- Google 的命令列工具，取代已過時的 Gemini CLI；若舊版 `@google/gemini-cli` 存在，安裝時會自動移除
 - ✅ **GitHub Copilot CLI** - GitHub AI 助手
+- ✅ **OpenCode**（`opencode`）- 開源終端 AI 編碼代理
+- ✅ **Hermes Agent**（`hermes`）- Nous Research 的 AI 代理（安裝時間較長，最長等待 15 分鐘）
 
 ### CLI 工具
 - ✅ jq, yq - JSON/YAML 處理
@@ -253,9 +257,10 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
   -UbuntuVersion <版號>   Ubuntu 版本號（例: 24.04、22.04）
                           不指定則使用預設值 24.04
   -WslUsername <名稱>     WSL 使用者名稱（預設: yao）
-  -WslPassword <密碼>     WSL 使用者密碼（預設: changeme）
+  -WslPassword <密碼>     WSL 使用者密碼（預設: changeme；不會寫入日誌）
   -Proxy <url>            設定代理伺服器
   -SkipVerify             跳過安裝驗證
+  -SkipUpdate             跳過安裝前的 Ubuntu apt 套件更新
 ```
 
 ### install-linux-tools.ps1
@@ -372,6 +377,15 @@ wsl
 **問題：** 磁碟空間不足
 **解決：** 清理不需要的檔案或擴充磁碟空間
 
+**問題：** AI CLI 安裝停在某一項（例如 Hermes Agent）很久沒有輸出
+**解決：** 原生安裝器的輸出會同時顯示在畫面與日誌，並有 15 分鐘逾時。先查看最新的 `logs/install-*.log` 最後幾行確認停在哪裡；逾時後會標記失敗並繼續其他工具。之後可用 `sudo ./verify.sh --fix` 單獨重裝失敗項目。
+
+**問題：** 安裝完成後提示使用預設密碼
+**解決：** 預設密碼為 `changeme`，請在 `.env` 設定 `WSL_PASSWORD` 後重新建立使用者，或登入後以 `passwd` 更換。日誌不會記錄密碼。
+
+**問題：** 安裝前的 apt 更新失敗
+**解決：** 更新失敗只會記錄警告並繼續安裝，檢查網路後可用 `sudo ./update.sh --apt-only` 重試；或以 `-SkipUpdate` 略過此步驟。
+
 ## 卸載
 
 如需移除已安裝的工具：
@@ -381,6 +395,25 @@ sudo ./uninstall.sh
 ```
 
 **警告：** 此操作會移除所有已安裝的開發工具，請謹慎使用。
+
+## 更新開發環境
+
+兩種方式，依需求選擇：
+
+```bash
+# 在 WSL 內執行（需要 sudo 以更新 apt）
+sudo ./update.sh               # 更新 apt + npm（codex、copilot）+ Rust + pyenv + Claude Code + OpenCode
+sudo ./update.sh --apt-only    # 只更新 apt 系統套件
+sudo ./update.sh --skip-apt    # 跳過 apt，只更新使用者層級工具
+```
+
+```powershell
+# 在 Windows 端執行：先 wsl --update 更新 WSL 本體，再呼叫 update.sh（使用 .env 的 WSL 使用者）
+.\update-wsl2.ps1
+.\update-wsl2.ps1 -SkipWslUpdate -SkipApt
+```
+
+> 目前沒有已知自動更新指令的工具會被略過：Antigravity（`agy`）與 Hermes Agent。
 
 ## 驗證安裝
 
@@ -502,11 +535,15 @@ setup-wsl-ubuntu/
 ├── setup-ubuntu.ps1            # 步驟 2：安裝 Ubuntu + 建立使用者，完成後自動接續安裝工具
 ├── install-linux-tools.ps1     # 開發工具安裝入口（可由 setup-ubuntu 自動呼叫，也可手動重跑）
 ├── install-linux-tools.sh      # 步驟 3：在 Linux 內執行的開發工具安裝腳本
+├── prepare-offline-packages.sh # 離線套件準備（供無網路環境使用）
 ├── uninstall-wsl2.ps1          # Windows 端一鍵清理 / 移除 WSL2 環境（支援徹底重置）
 ├── uninstall.sh                # 在 Linux 內卸載所有已安裝的開發工具
 ├── verify.sh                   # 工具安裝驗證（支援 --fix 自動重裝）
+├── update.sh                   # 更新 apt 與開發工具（WSL 內執行，支援 --apt-only）
+├── update-wsl2.ps1             # Windows 端更新入口（wsl --update + 呼叫 update.sh）
 ├── config.example.sh           # [已淘汰/過渡] 配置檔範例（請改用 .env.example）
 ├── .env.example                # 環境設定範本（複製為 .env 後填入實際值）
+├── .gitattributes              # 行尾設定（確保 .sh 使用 LF、.ps1 使用 CRLF）
 ├── README.md                   # 本文檔
 ├── tree.md                     # 專案結構
 ├── logs/                       # 安裝日誌
@@ -540,7 +577,7 @@ A: 支援 Ubuntu（預設安裝 Ubuntu 24.04）。開發工具安裝腳本以 Ub
 A: 安全，腳本設計為冪等執行。已安裝的工具會自動跳過，但配置步驟（如 Docker daemon 設定、daemon.json、使用者群組、npm 全域套件）每次都會重新套用，確保設定是最新的。
 
 ### Q: 如何更新已安裝的工具？
-A: 大部分工具可以使用各自的更新命令（如 `apt update`、`nvm install`）。
+A: 使用 `sudo ./update.sh`（WSL 內）或 `.\update-wsl2.ps1`（Windows 端）一次更新，詳見「更新開發環境」章節。
 
 ### Q: 可以在實體 Linux 上使用嗎？
 A: 可以，`install-linux-tools.sh` 可在任何 Ubuntu/Debian 系統上執行。
