@@ -14,10 +14,10 @@
     優先順序：手動指定 > .env UBUNTU_VERSION > 空值（Ubuntu 最新 LTS）
 
 .PARAMETER WslUsername
-    WSL 使用者名稱，預設為 yao
+    WSL 使用者名稱。未指定且 .env 未設定時，會在執行時互動輸入（無預設值）
 
 .PARAMETER WslPassword
-    WSL 使用者密碼，預設為 changeme
+    WSL 使用者密碼。未指定且 .env 未設定時，會在執行時互動輸入（需輸入兩次確認，至少 8 個字元）
 
 .PARAMETER LogPath
     日誌檔案路徑，預設為腳本目錄下的 logs 資料夾
@@ -37,8 +37,8 @@
 [CmdletBinding()]
 param(
     [string]$UbuntuVersion = "",   # 優先順序：參數 > .env UBUNTU_VERSION > 空值（安裝 Ubuntu 最新 LTS）
-    [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
-    [string]$WslPassword   = "",   # 優先順序：參數 > .env WSL_PASSWORD > "changeme"
+    [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME > 互動輸入（無預設值）
+    [string]$WslPassword   = "",   # 優先順序：參數 > .env WSL_PASSWORD > 互動輸入（無預設值）
     [string]$Proxy         = "",
     [switch]$SkipVerify,
     [switch]$SkipUpdate,   # 略過安裝前的 WSL 與發行版更新（wsl --update + apt upgrade）
@@ -306,6 +306,43 @@ function Test-Installation {
     }
 }
 
+function Read-WslCredentials {
+    # 互動輸入 WSL 使用者名稱與密碼；非互動環境（例如輸入被重新導向）直接報錯，不使用預設值
+    if ([Console]::IsInputRedirected) {
+        throw "未提供 WSL 使用者名稱或密碼，且目前無法互動輸入。請使用 -WslUsername / -WslPassword 參數，或在 .env 設定 WSL_USERNAME / WSL_PASSWORD"
+    }
+
+    Write-Host "`r請設定 WSL 使用者帳號（將建立為 Ubuntu 的預設使用者）" -ForegroundColor Cyan
+
+    $user = ""
+    while ($true) {
+        $user = (Read-Host "`r使用者名稱（小寫英文字母開頭，可含數字、_、-，最長 32 字元）").Trim()
+        if ($user -match '^[a-z_][a-z0-9_-]{0,31}$') { break }
+        Write-Host "`r使用者名稱格式不合法，請重新輸入" -ForegroundColor Yellow
+    }
+
+    $password = ""
+    while ($true) {
+        $secure1 = Read-Host "`r密碼（至少 8 個字元）" -AsSecureString
+        $secure2 = Read-Host "`r再輸入一次確認" -AsSecureString
+        $candidate = [System.Net.NetworkCredential]::new("", $secure1).Password
+        $confirm   = [System.Net.NetworkCredential]::new("", $secure2).Password
+
+        if ($candidate.Length -lt 8) {
+            Write-Host "`r密碼至少需要 8 個字元，請重新輸入" -ForegroundColor Yellow
+            continue
+        }
+        if ($candidate -cne $confirm) {
+            Write-Host "`r兩次輸入的密碼不一致，請重新輸入" -ForegroundColor Yellow
+            continue
+        }
+        $password = $candidate
+        break
+    }
+
+    return @{ User = $user; Password = $password }
+}
+
 function Update-Distro {
     # 只更新 Ubuntu 內的 apt 套件（update.sh --apt-only）；失敗只記錄警告，不中止安裝流程
     Write-Log "更新 Ubuntu 系統套件（apt update / upgrade）..." "Info"
@@ -346,8 +383,14 @@ function Main {
 
     # 從 .env 載入設定，優先順序：參數 > .env > 後備預設值
     $dotenv = Read-DotEnv
-    if (-not $WslUsername) { $WslUsername = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao'      } }
-    if (-not $WslPassword) { $WslPassword = if ($dotenv['WSL_PASSWORD']) { $dotenv['WSL_PASSWORD'] } else { 'changeme' } }
+    if (-not $WslUsername) { $WslUsername = $dotenv['WSL_USERNAME'] }
+    if (-not $WslPassword) { $WslPassword = $dotenv['WSL_PASSWORD'] }
+    if (-not $WslUsername -or -not $WslPassword) {
+        # 參數與 .env 都沒有提供時，互動輸入帳號與密碼（不使用預設值）
+        $cred = Read-WslCredentials
+        if (-not $WslUsername) { $WslUsername = $cred.User }
+        if (-not $WslPassword) { $WslPassword = $cred.Password }
+    }
 
     $resolvedVersion   = if ($UbuntuVersion) { $UbuntuVersion } elseif ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { "24.04" }
     $Script:DistroName = if ($resolvedVersion) { "Ubuntu-$resolvedVersion" } else { "Ubuntu" }
@@ -384,12 +427,8 @@ function Main {
         Write-Log "========================================" "Success"
         Write-Log "使用者帳號資訊："
         Write-Log "  使用者名稱: $WslUsername"
-        # 密碼不寫入日誌；使用預設密碼時提醒更換
-        if ($WslPassword -eq 'changeme') {
-            Write-Log "  密碼: 使用預設值 changeme，請儘快更換（於 .env 設定 WSL_PASSWORD）" "Warning"
-        } else {
-            Write-Log "  密碼: 已設定（依 .env 或參數指定，未記錄於日誌）"
-        }
+        # 密碼不寫入日誌
+        Write-Log "  密碼: 已設定（未記錄於日誌）"
         Write-Log "日誌檔案位置: $Global:LogFile"
 
         # 安裝前先更新：WSL 本體與發行版套件，讓後續開發工具以最新狀態安裝

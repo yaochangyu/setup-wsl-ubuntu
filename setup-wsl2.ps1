@@ -17,10 +17,10 @@
     WSL 發行版完整名稱（例如: Ubuntu-24.04），預設安裝 Ubuntu-24.04
 
 .PARAMETER WslUsername
-    WSL 使用者名稱，預設為 yao
+    WSL 使用者名稱。未指定時由 setup-ubuntu.ps1 互動輸入（無預設值）
 
 .PARAMETER WslPassword
-    WSL 使用者密碼，預設為 changeme
+    WSL 使用者密碼。未指定時由 setup-ubuntu.ps1 互動輸入（無預設值）
 
 .PARAMETER LogPath
     日誌檔案路徑，預設為腳本目錄下的 logs 資料夾
@@ -38,8 +38,8 @@
 [CmdletBinding()]
 param(
     [string]$DistroName  = "",
-    [string]$WslUsername = "yao",
-    [string]$WslPassword = "changeme",
+    [string]$WslUsername = "",
+    [string]$WslPassword = "",
     [string]$LogPath     = "$PSScriptRoot\logs"
 )
 
@@ -68,11 +68,13 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "`r[步驟 2/2] 安裝 Ubuntu..." -ForegroundColor Cyan
 
 $linuxArgs = @{
-    WslUsername = $WslUsername
-    WslPassword = $WslPassword
     LogPath     = $LogPath
 }
-if ($DistroName) { $linuxArgs["DistroName"] = $DistroName }
+# 帳密未指定時不傳入，讓 setup-ubuntu.ps1 互動輸入（不使用預設值）
+if ($WslUsername) { $linuxArgs["WslUsername"] = $WslUsername }
+if ($WslPassword) { $linuxArgs["WslPassword"] = $WslPassword }
+# setup-ubuntu.ps1 的參數是 UbuntuVersion（例如 24.04），由 DistroName（Ubuntu-24.04）推算
+if ($DistroName -match '^Ubuntu-(\d+\.\d+)$') { $linuxArgs["UbuntuVersion"] = $Matches[1] }
 
 & $linuxScript @linuxArgs
 

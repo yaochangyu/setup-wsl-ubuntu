@@ -60,7 +60,10 @@ $dotenv = Read-DotEnv
 if (-not $DistroName) {
     $DistroName = if ($dotenv['UBUNTU_VERSION']) { "Ubuntu-$($dotenv['UBUNTU_VERSION'])" } else { "Ubuntu-24.04" }
 }
-$wslUser = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { "yao" }
+$wslUser = $dotenv['WSL_USERNAME']
+if (-not $wslUser) {
+    throw "未設定 WSL 使用者。請在 .env 加入 WSL_USERNAME=<使用者名稱>（更新腳本不會猜測預設帳號）"
+}
 if ($wslUser -notmatch '^[a-z_][a-z0-9_-]{0,31}$') {
     throw "WSL 使用者名稱格式不合法: $wslUser"
 }

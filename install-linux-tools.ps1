@@ -9,7 +9,7 @@
     3. 以 root 身分執行 install-linux-tools.sh
 
 .PARAMETER WslUsername
-    WSL 使用者名稱，用於設定工具的擁有者（例如加入 docker 群組），預設為 yao
+    WSL 使用者名稱，用於設定工具的擁有者（例如加入 docker 群組）。未指定且 .env 未設定時互動輸入
 
 .PARAMETER Proxy
     代理伺服器 URL，會傳遞給安裝腳本（例如: http://proxy.example.com:8080）
@@ -36,7 +36,7 @@
 [CmdletBinding()]
 param(
     [string]$UbuntuVersion = "",   # 優先順序：參數 > .env UBUNTU_VERSION > "24.04"
-    [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME > "yao"
+    [string]$WslUsername   = "",   # 優先順序：參數 > .env WSL_USERNAME > 互動輸入（無預設值）
     [string]$Proxy         = "",
     [switch]$SkipVerify,
     [string]$LogPath       = "$PSScriptRoot\logs"
@@ -328,7 +328,18 @@ function Main {
 
     # 從 .env 載入設定，參數 > .env > 後備預設值
     $dotenv = Read-DotEnv
-    if (-not $WslUsername) { $WslUsername = if ($dotenv['WSL_USERNAME']) { $dotenv['WSL_USERNAME'] } else { 'yao' } }
+    if (-not $WslUsername) { $WslUsername = $dotenv['WSL_USERNAME'] }
+    if (-not $WslUsername) {
+        # 無參數與 .env 設定時互動輸入（不使用預設值）
+        if ([Console]::IsInputRedirected) {
+            throw "未提供 WSL 使用者名稱。請使用 -WslUsername 參數，或在 .env 設定 WSL_USERNAME"
+        }
+        while ($true) {
+            $WslUsername = (Read-Host "`r請輸入 WSL 使用者名稱（小寫英文字母開頭，可含數字、_、-）").Trim()
+            if ($WslUsername -match '^[a-z_][a-z0-9_-]{0,31}$') { break }
+            Write-Host "`r使用者名稱格式不合法，請重新輸入" -ForegroundColor Yellow
+        }
+    }
 
     $resolvedVersion   = if ($UbuntuVersion) { $UbuntuVersion } elseif ($dotenv['UBUNTU_VERSION']) { $dotenv['UBUNTU_VERSION'] } else { "24.04" }
     $Script:DistroName = "Ubuntu-$resolvedVersion"

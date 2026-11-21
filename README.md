@@ -98,7 +98,7 @@ cd D:\lab\setup-wsl-ubuntu
 .\setup-ubuntu.ps1
 ```
 
-預設安裝 Ubuntu 24.04，帳號為 `yao / changeme`。
+預設安裝 Ubuntu 24.04。執行時若未透過參數或 `.env` 提供帳號與密碼，會**互動詢問**使用者名稱與密碼（密碼需輸入兩次確認，至少 8 個字元），不會使用預設帳號。
 
 `setup-ubuntu.ps1` 完成 Ubuntu 安裝後，若同目錄存在 `install-linux-tools.ps1`，會自動接續安裝開發工具，因此多數情況不需要再手動執行下一步。
 
@@ -256,8 +256,8 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 參數:
   -UbuntuVersion <版號>   Ubuntu 版本號（例: 24.04、22.04）
                           不指定則使用預設值 24.04
-  -WslUsername <名稱>     WSL 使用者名稱（預設: yao）
-  -WslPassword <密碼>     WSL 使用者密碼（預設: changeme；不會寫入日誌）
+  -WslUsername <名稱>     WSL 使用者名稱（未指定時互動輸入，無預設值）
+  -WslPassword <密碼>     WSL 使用者密碼（未指定時互動輸入，無預設值；不會寫入日誌）
   -Proxy <url>            設定代理伺服器
   -SkipVerify             跳過安裝驗證
   -SkipUpdate             跳過安裝前的 Ubuntu apt 套件更新
@@ -269,7 +269,7 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 參數:
   -UbuntuVersion <版號>   Ubuntu 版本號（例: 24.04、22.04）
                           優先順序：參數 > .env UBUNTU_VERSION > 24.04
-  -WslUsername <名稱>     WSL 使用者名稱（預設: yao）
+  -WslUsername <名稱>     WSL 使用者名稱（未指定時互動輸入，無預設值）
   -Proxy <url>            設定代理伺服器
   -SkipVerify             跳過安裝驗證
 ```
@@ -381,7 +381,7 @@ wsl
 **解決：** 原生安裝器的輸出會同時顯示在畫面與日誌，並有 15 分鐘逾時。先查看最新的 `logs/install-*.log` 最後幾行確認停在哪裡；逾時後會標記失敗並繼續其他工具。之後可用 `sudo ./verify.sh --fix` 單獨重裝失敗項目。
 
 **問題：** 安裝完成後提示使用預設密碼
-**解決：** 預設密碼為 `changeme`，請在 `.env` 設定 `WSL_PASSWORD` 後重新建立使用者，或登入後以 `passwd` 更換。日誌不會記錄密碼。
+**解決：** 安裝時會要求輸入密碼，不會使用預設值。若要更換，登入後以 `passwd` 修改。日誌不會記錄密碼。
 
 **問題：** 安裝前的 apt 更新失敗
 **解決：** 更新失敗只會記錄警告並繼續安裝，檢查網路後可用 `sudo ./update.sh --apt-only` 重試；或以 `-SkipUpdate` 略過此步驟。
@@ -511,7 +511,7 @@ sudo ./verify.sh --fix
 腳本將依序自動完成並驗證以下所有項目：
 1. **WSL2 Windows 功能與核心套件安裝**（自動相容 Windows 11 與核心隔離/Hypervisor 環境）。
 2. **Ubuntu 發行版下載與註冊**。
-3. **使用者帳號建立與系統設定**（自動設定預設使用者 `yao` 與 `/etc/wsl.conf`）。
+3. **使用者帳號建立與系統設定**（以安裝時輸入或 `.env` 指定的使用者為預設使用者，並設定 `/etc/wsl.conf`）。
 4. **開發工具全自動安裝**（Docker、.NET、Node.js、Python、Go、Rust、DevOps 與 CLI 工具）。
 5. **Windows Docker Context 建立**。
 6. **乾淨無偏斜的終端日誌排版**。
