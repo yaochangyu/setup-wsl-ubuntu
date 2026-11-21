@@ -190,7 +190,7 @@ WSL_PASSWORD=your_password
 - ✅ **Antigravity CLI**（`agy`）- Google 的命令列工具，取代已過時的 Gemini CLI；若舊版 `@google/gemini-cli` 存在，安裝時會自動移除
 - ✅ **GitHub Copilot CLI** - GitHub AI 助手
 - ✅ **OpenCode**（`opencode`）- 開源終端 AI 編碼代理
-- ✅ **Hermes Agent**（`hermes`）- Nous Research 的 AI 代理（安裝時間較長，最長等待 15 分鐘）
+- ✅ **Hermes Agent**（`hermes`）- Nous Research 的 AI 代理（安裝時以 `--non-interactive` 執行，不會觸發 setup wizard；之後可手動執行 `hermes setup`）
 
 ### CLI 工具
 - ✅ jq, yq - JSON/YAML 處理
@@ -378,7 +378,7 @@ wsl
 **解決：** 清理不需要的檔案或擴充磁碟空間
 
 **問題：** AI CLI 安裝停在某一項（例如 Hermes Agent）很久沒有輸出
-**解決：** 原生安裝器的輸出會同時顯示在畫面與日誌，並有 15 分鐘逾時。先查看最新的 `logs/install-*.log` 最後幾行確認停在哪裡；逾時後會標記失敗並繼續其他工具。之後可用 `sudo ./verify.sh --fix` 單獨重裝失敗項目。
+**解決：** 原生安裝器的輸出會同時顯示在畫面與日誌。先查看最新的 `logs/install-*.log` 最後幾行確認停在哪裡。失敗的項目可用 `sudo ./verify.sh --fix` 單獨重裝。
 
 **問題：** 安裝完成後提示使用預設密碼
 **解決：** 安裝時會要求輸入密碼，不會使用預設值。若要更換，登入後以 `passwd` 修改。日誌不會記錄密碼。

@@ -715,11 +715,13 @@ install_codex_cli() {
 
 # 原生安裝器共用輔助函式（curl | bash，以實際使用者身分執行）
 # 安裝後把安裝目錄加入目前 PATH 與 ~/.bashrc，讓後續的 command -v 驗證能找到
-# 用法：native_cli_install "顯示名稱" "安裝器 URL" "指令名稱"
+# 用法：native_cli_install "顯示名稱" "安裝器 URL" "指令名稱" [安裝器參數...]
 native_cli_install() {
     local display_name="$1"
     local installer_url="$2"
     local bin_name="$3"
+    shift 3
+    local installer_args="$*"
 
     local actual_user="${SUDO_USER:-$USER}"
     local user_home
@@ -733,9 +735,9 @@ native_cli_install() {
     fi
 
     # 安裝器以 process substitution 執行，stdin 指向 /dev/null：避免安裝器內的指令吃掉腳本內容或等待輸入。
-    # timeout 限制最長 15 分鐘，輸出同時顯示在畫面與日誌，避免看起來像卡住。
-    info "安裝 ${display_name}（最長等待 15 分鐘，進度同時寫入日誌）..."
-    sudo -u "${actual_user}" bash -c "timeout 900 bash <(curl -fsSL '${installer_url}') </dev/null" 2>&1 \
+    # 輸出同時顯示在畫面與日誌。
+    info "安裝 ${display_name}（進度同時寫入日誌）..."
+    sudo -u "${actual_user}" bash -c "bash <(curl -fsSL '${installer_url}') ${installer_args} </dev/null" 2>&1 \
         | tee -a "${LOG_FILE}" || true
 
     local bin_dir rel_dir
@@ -778,8 +780,9 @@ install_opencode_cli() {
 }
 
 # 安裝 Hermes Agent（Nous Research）
+# --non-interactive：跳過需要輸入的 stage（包含 setup wizard），之後可手動執行 hermes setup
 install_hermes_agent() {
-    native_cli_install "Hermes Agent" "https://hermes-agent.nousresearch.com/install.sh" "hermes"
+    native_cli_install "Hermes Agent" "https://hermes-agent.nousresearch.com/install.sh" "hermes" --non-interactive
 }
 
 # 安裝 GitHub Copilot CLI
