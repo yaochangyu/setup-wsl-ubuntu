@@ -841,9 +841,15 @@ install_zoxide() {
     local user_home
     user_home=$(eval echo ~"${actual_user}")
 
-    sudo -u "${actual_user}" bash -c \
-        'curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash' \
-        >> "${LOG_FILE}" 2>&1 || { warning "zoxide 安裝失敗"; return 1; }
+    # 設定連線與總時間上限，避免連不上 GitHub 時卡住數十分鐘；
+    # pipefail 讓 curl 失敗（含逾時）時整條管線回傳失敗，不會把截斷的腳本交給 bash 執行
+    if ! sudo -u "${actual_user}" bash -c \
+        'set -o pipefail; curl -sSfL --connect-timeout 15 --max-time 120 --retry 2 https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash' \
+        >> "${LOG_FILE}" 2>&1; then
+        warning "zoxide 安裝失敗，log 最後 10 行："
+        tail -n 10 "${LOG_FILE}"
+        return 1
+    fi
 
     # 安裝器預設放在 ~/.local/bin，確保加入 PATH
     local zoxide_bin="${user_home}/.local/bin/zoxide"
@@ -862,7 +868,8 @@ install_zoxide() {
         fi
         success "zoxide 安裝完成"
     else
-        warning "zoxide 安裝失敗"
+        warning "zoxide 安裝失敗（安裝器執行完成，但 ${zoxide_bin} 不存在）"
+        tail -n 10 "${LOG_FILE}"
         return 1
     fi
 }
