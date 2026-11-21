@@ -77,6 +77,60 @@ declare -A INSTALL_STATUS
 TOTAL_STEPS=0
 CURRENT_STEP=0
 
+# --only 選取的工具或群組（空陣列 = 完整安裝）
+declare -a ONLY_TOOLS=()
+
+# 工具 → 所屬群組（--only 使用）。群組名稱本身也可指定，代表該群組全部工具。
+declare -A TOOL_GROUP=(
+    [claude]=ai [codex]=ai [antigravity]=ai [copilot]=ai [opencode]=ai [hermes]=ai
+    [uv]=extra [gh]=extra [awscli]=extra [gcloud]=extra [vifm]=extra [gcx]=extra [dbx]=extra
+    [scrapling]=extra [crawl4ai]=extra [browser-use]=extra
+    [agent-browser]=extra [gws]=extra [nlm]=extra [open-browser-use]=extra
+    [chrome-devtools-mcp]=extra [opencli]=extra [hackmd]=extra [uipro]=extra
+    [cli-tools]=cli-tools [docker]=docker [dotnet]=dotnet [nodejs]=nodejs
+    [python]=python [go]=go [rust]=rust [vscode-server]=vscode-server
+    [vim]=vim [database]=database [devops]=devops [homebrew]=homebrew
+)
+
+# 工具本身或其所屬群組是否被選取（未指定 --only 時一律 true）
+want() {
+    [[ ${#ONLY_TOOLS[@]} -eq 0 ]] && return 0
+    local sel group="${TOOL_GROUP[$1]:-}"
+    for sel in "${ONLY_TOOLS[@]}"; do
+        [[ "${sel}" == "$1" || "${sel}" == "${group}" ]] && return 0
+    done
+    return 1
+}
+
+# 群組內是否有任一工具被選取（用於決定是否呼叫整個群組函式）
+group_active() {
+    [[ ${#ONLY_TOOLS[@]} -eq 0 ]] && return 0
+    local sel
+    for sel in "${ONLY_TOOLS[@]}"; do
+        [[ "${sel}" == "$1" || "${TOOL_GROUP[${sel}]:-}" == "$1" ]] && return 0
+    done
+    return 1
+}
+
+# 驗證 --only 的名稱是否都存在
+validate_only_tools() {
+    local sel valid name
+    for sel in "${ONLY_TOOLS[@]}"; do
+        valid=false
+        for name in "${!TOOL_GROUP[@]}"; do
+            if [[ "${sel}" == "${name}" || "${sel}" == "${TOOL_GROUP[${name}]}" ]]; then
+                valid=true
+                break
+            fi
+        done
+        if [[ "${valid}" != "true" ]]; then
+            # 此時日誌目錄尚未初始化，直接輸出到 stderr
+            echo "[ERROR] 未知的工具或群組: ${sel}（可用名稱請見 --help）" >&2
+            exit 1
+        fi
+    done
+}
+
 ###############################################################################
 # 工具函式
 ###############################################################################
@@ -540,13 +594,29 @@ WSL2 Ubuntu 開發環境自動安裝腳本 v${SCRIPT_VERSION}
     --proxy <url>      設定代理伺服器 (例如: http://proxy.example.com:8080)
     --config <file>    使用舊版配置檔（過渡相容，預設: config.sh）
     --skip-verify      跳過安裝驗證
+    --only <名稱,...>  只安裝指定的工具或群組（逗號分隔；指定時自動跳過完整驗證）
     --help             顯示此說明訊息
+
+--only 可用名稱:
+    群組（安裝該群組全部工具）:
+        ai, extra
+    AI CLI（屬於 ai）:
+        claude, codex, antigravity, copilot, opencode, hermes
+    額外工具（屬於 extra）:
+        uv, gh, awscli, gcloud, vifm, gcx, dbx, scrapling, crawl4ai, browser-use,
+        agent-browser, gws, nlm, open-browser-use, chrome-devtools-mcp, opencli, hackmd, uipro
+    獨立群組:
+        cli-tools, docker, dotnet, nodejs, python, go, rust, vscode-server, vim, database, devops, homebrew
+    注意: scrapling、crawl4ai、browser-use 依賴 uv，需一併指定 uv
 
 範例:
     sudo ${SCRIPT_NAME}
     sudo ${SCRIPT_NAME} --proxy http://proxy.example.com:8080
     sudo ${SCRIPT_NAME} --offline
     sudo ${SCRIPT_NAME} --config my-config.sh
+    sudo ${SCRIPT_NAME} --only gh
+    sudo ${SCRIPT_NAME} --only claude,codex
+    sudo ${SCRIPT_NAME} --only uv,scrapling
 
 EOF
 }
@@ -575,6 +645,15 @@ parse_args() {
                 CLI_OVERRIDE[SKIP_VERIFY]=true
                 shift
                 ;;
+            --only)
+                if [[ -z "${2:-}" ]]; then
+                    echo "[ERROR] --only 需要指定工具名稱，例如 --only gh,claude" >&2
+                    exit 1
+                fi
+                IFS=',' read -ra _only_items <<< "$2"
+                ONLY_TOOLS+=("${_only_items[@]}")
+                shift 2
+                ;;
             --help)
                 show_help
                 exit 0
@@ -590,6 +669,12 @@ parse_args() {
                 ;;
         esac
     done
+
+    if [[ ${#ONLY_TOOLS[@]} -gt 0 ]]; then
+        validate_only_tools
+        # 指定 --only 時只安裝部分工具，完整驗證會對未安裝的工具報錯，因此略過
+        SKIP_VERIFY=true
+    fi
 }
 
 # 主程式
@@ -637,72 +722,72 @@ main() {
     fi
 
     update_progress "安裝 CLI 工具..."
-    if declare -f install_cli_tools &> /dev/null; then
+    if want cli-tools && declare -f install_cli_tools &> /dev/null; then
         install_cli_tools
     fi
     
     update_progress "安裝 Docker..."
-    if declare -f install_docker &> /dev/null; then
+    if want docker && declare -f install_docker &> /dev/null; then
         install_docker
     fi
 
     update_progress "安裝 .NET SDK..."
-    if declare -f install_dotnet &> /dev/null; then
+    if want dotnet && declare -f install_dotnet &> /dev/null; then
         install_dotnet
     fi
 
     update_progress "安裝 Node.js..."
-    if declare -f install_nodejs &> /dev/null; then
+    if want nodejs && declare -f install_nodejs &> /dev/null; then
         install_nodejs
     fi
 
     update_progress "安裝 AI CLI 工具..."
-    if declare -f install_ai_cli_tools &> /dev/null; then
+    if group_active ai && declare -f install_ai_cli_tools &> /dev/null; then
         install_ai_cli_tools
     fi
 
     update_progress "安裝額外工具..."
-    if declare -f install_extra_tools &> /dev/null; then
+    if group_active extra && declare -f install_extra_tools &> /dev/null; then
         install_extra_tools
     fi
 
     update_progress "安裝 Python..."
-    if declare -f install_python &> /dev/null; then
+    if want python && declare -f install_python &> /dev/null; then
         install_python
     fi
 
     update_progress "安裝 Go..."
-    if declare -f install_go &> /dev/null; then
+    if want go && declare -f install_go &> /dev/null; then
         install_go
     fi
 
     update_progress "安裝 Rust..."
-    if declare -f install_rust &> /dev/null; then
+    if want rust && declare -f install_rust &> /dev/null; then
         install_rust
     fi
 
     update_progress "設定 VS Code Server..."
-    if declare -f install_vscode_server &> /dev/null; then
+    if want vscode-server && declare -f install_vscode_server &> /dev/null; then
         install_vscode_server
     fi
 
     update_progress "安裝 Vim 插件..."
-    if declare -f install_vim_plugins &> /dev/null; then
+    if want vim && declare -f install_vim_plugins &> /dev/null; then
         install_vim_plugins
     fi
 
     update_progress "安裝資料庫工具..."
-    if declare -f install_database_tools &> /dev/null; then
+    if want database && declare -f install_database_tools &> /dev/null; then
         install_database_tools
     fi
 
     update_progress "安裝 DevOps 工具..."
-    if declare -f install_devops_tools &> /dev/null; then
+    if want devops && declare -f install_devops_tools &> /dev/null; then
         install_devops_tools
     fi
 
     update_progress "安裝 Homebrew..."
-    if declare -f install_homebrew &> /dev/null; then
+    if want homebrew && declare -f install_homebrew &> /dev/null; then
         install_homebrew
     fi
 

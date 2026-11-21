@@ -1159,12 +1159,12 @@ install_cli_tools() {
 install_ai_cli_tools() {
     print_header "安裝 AI CLI 工具"
 
-    install_claude_code || true
-    install_codex_cli || true
-    install_antigravity_cli || true
-    install_copilot_cli || true
-    install_opencode_cli || true
-    install_hermes_agent || true
+    want claude && install_claude_code || true
+    want codex && install_codex_cli || true
+    want antigravity && install_antigravity_cli || true
+    want copilot && install_copilot_cli || true
+    want opencode && install_opencode_cli || true
+    want hermes && install_hermes_agent || true
 
     # 驗證安裝
     local actual_user="${SUDO_USER:-$USER}"

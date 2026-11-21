@@ -230,27 +230,27 @@ install_extra_tools() {
     info "========================================"
 
     # uv 需先安裝，後續 Python 工具才能使用
-    install_uv || true
+    want uv && install_uv || true
 
-    install_gh || true
-    install_awscli || true
-    install_gcloud || true
-    install_vifm || true
-    install_gcx || true
-    install_dbx_cli || true
+    want gh && install_gh || true
+    want awscli && install_awscli || true
+    want gcloud && install_gcloud || true
+    want vifm && install_vifm || true
+    want gcx && install_gcx || true
+    want dbx && install_dbx_cli || true
 
-    install_scrapling || true
-    install_crawl4ai || true
-    install_browser_use || true
+    want scrapling && install_scrapling || true
+    want crawl4ai && install_crawl4ai || true
+    want browser-use && install_browser_use || true
 
-    install_agent_browser || true
-    install_gws || true
-    install_nlm_cli || true
-    install_open_browser_use || true
-    install_chrome_devtools_mcp || true
-    install_opencli || true
-    install_hackmd_cli || true
-    install_uipro_cli || true
+    want agent-browser && install_agent_browser || true
+    want gws && install_gws || true
+    want nlm && install_nlm_cli || true
+    want open-browser-use && install_open_browser_use || true
+    want chrome-devtools-mcp && install_chrome_devtools_mcp || true
+    want opencli && install_opencli || true
+    want hackmd && install_hackmd_cli || true
+    want uipro && install_uipro_cli || true
 
     if [[ ${#POST_INSTALL_NOTES[@]} -gt 0 ]]; then
         echo "" | tee -a "${LOG_FILE}"
