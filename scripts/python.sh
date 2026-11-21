@@ -48,20 +48,27 @@ install_python() {
     success "pyenv 已安裝"
 
     # 設定 pyenv 環境變數
+    # 區塊以 marker 包住，每次安裝先移除舊區塊（含舊版無 marker 的區塊），
+    # 再附加到 ~/.bashrc 末尾，避免之後其他設定重建 PATH 時把 pyenv 蓋掉
     local shell_rc="${user_home}/.bashrc"
+    local marker_begin="# >>> pyenv (setup-wsl-ubuntu) >>>"
+    local marker_end="# <<< pyenv (setup-wsl-ubuntu) <<<"
 
-    if ! grep -q 'PYENV_ROOT' "${shell_rc}"; then
-        info "設定 pyenv 環境變數..."
-        sudo -u "${actual_user}" tee -a "${shell_rc}" > /dev/null <<'EOF'
-
-# pyenv configuration
-export PYENV_ROOT="$HOME/.pyenv"
-export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
+    info "設定 pyenv 環境變數..."
+    sudo -u "${actual_user}" touch "${shell_rc}"
+    sudo -u "${actual_user}" sed -i \
+        -e "/^${marker_begin}\$/,/^${marker_end}\$/d" \
+        -e '/^# pyenv configuration$/,/^eval "\$(pyenv virtualenv-init -)"$/d' \
+        "${shell_rc}"
+    sudo -u "${actual_user}" tee -a "${shell_rc}" > /dev/null <<EOF
+${marker_begin}
+export PYENV_ROOT="\$HOME/.pyenv"
+export PATH="\$PYENV_ROOT/bin:\$PATH"
+eval "\$(pyenv init -)"
+eval "\$(pyenv virtualenv-init -)"
+${marker_end}
 EOF
-        success "環境變數已設定"
-    fi
+    success "環境變數已設定"
 
     # 安裝指定 Python 版本
     local pyenv_root="${user_home}/.pyenv"

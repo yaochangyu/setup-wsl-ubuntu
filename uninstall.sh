@@ -129,7 +129,10 @@ fi
 echo "移除 Python 和 pyenv..."
 if [[ "${actual_user}" != "root" ]]; then
     rm -rf "${user_home}/.pyenv"
-    sed -i '/PYENV_ROOT/d' "${user_home}/.bashrc" 2>/dev/null || true
+    # 移除 marker 區塊（python.sh 寫入），並清掉舊版無 marker 的區塊
+    sed -i -e '/^# >>> pyenv (setup-wsl-ubuntu) >>>$/,/^# <<< pyenv (setup-wsl-ubuntu) <<<$/d' \
+        -e '/^# pyenv configuration$/,/^eval "\$(pyenv virtualenv-init -)"$/d' \
+        "${user_home}/.bashrc" 2>/dev/null || true
 fi
 
 # 移除 Go
