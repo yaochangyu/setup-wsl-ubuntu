@@ -661,6 +661,11 @@ main() {
         install_ai_cli_tools
     fi
 
+    update_progress "安裝額外工具..."
+    if declare -f install_extra_tools &> /dev/null; then
+        install_extra_tools
+    fi
+
     update_progress "安裝 Python..."
     if declare -f install_python &> /dev/null; then
         install_python

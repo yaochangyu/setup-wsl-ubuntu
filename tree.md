@@ -29,6 +29,7 @@ setup-wsl-ubuntu/
 └── scripts/
     ├── common.sh
     ├── database.sh
+    ├── extra-tools.sh
     ├── devops.sh
     ├── docker.sh
     ├── dotnet.sh

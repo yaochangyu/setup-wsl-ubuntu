@@ -582,6 +582,49 @@ echo -e "${COLOR_BOLD}${COLOR_CYAN}========================================${COL
 echo -e "${COLOR_BOLD}${COLOR_CYAN}開發環境工具驗證${COLOR_RESET}"
 echo -e "${COLOR_BOLD}${COLOR_CYAN}========================================${COLOR_RESET}"
 
+# 額外工具（scripts/extra-tools.sh）：以使用者身分檢查指令是否可用
+# 用法：check_user_bin "顯示名稱" "指令名稱" "修復函式"
+check_user_bin() {
+    local name="$1"
+    local bin="$2"
+    local fix_fn="$3"
+
+    local user_home
+    user_home=$(get_user_home)
+    local nvm_sh="${user_home}/.nvm/nvm.sh"
+
+    if run_as_user "export PATH=\"${user_home}/.local/bin:\$PATH\"; [ -s '${nvm_sh}' ] && source '${nvm_sh}'; command -v ${bin}" &> /dev/null; then
+        check_pass "${name}"
+    else
+        check_fail "${name}" "${fix_fn}"
+    fi
+}
+
+check_extra_tools() {
+    print_header "額外工具"
+
+    check_user_bin "uv" "uv" "install_uv"
+    check_user_bin "gh" "gh" "install_gh"
+    check_user_bin "aws" "aws" "install_awscli"
+    check_user_bin "gcloud" "gcloud" "install_gcloud"
+    check_user_bin "vifm" "vifm" "install_vifm"
+    check_user_bin "gcx" "gcx" "install_gcx"
+    check_user_bin "dbx" "dbx" "install_dbx_cli"
+
+    check_user_bin "scrapling" "scrapling" "install_scrapling"
+    check_user_bin "crawl4ai-setup" "crawl4ai-setup" "install_crawl4ai"
+    check_user_bin "browser-use" "browser-use" "install_browser_use"
+
+    check_user_bin "agent-browser" "agent-browser" "install_agent_browser"
+    check_user_bin "gws" "gws" "install_gws"
+    check_user_bin "nlm-cli" "nlm-cli" "install_nlm_cli"
+    check_user_bin "obu" "obu" "install_open_browser_use"
+    check_user_bin "chrome-devtools-mcp" "chrome-devtools-mcp" "install_chrome_devtools_mcp"
+    check_user_bin "opencli" "opencli" "install_opencli"
+    check_user_bin "hackmd-cli" "hackmd-cli" "install_hackmd_cli"
+    check_user_bin "uipro" "uipro" "install_uipro_cli"
+}
+
 # 執行所有檢查
 check_system_tools
 check_cli_tools
@@ -594,6 +637,7 @@ check_go
 check_rust
 check_database
 check_devops
+check_extra_tools
 
 # 輸出總表
 print_summary

@@ -216,6 +216,21 @@ WSL_PASSWORD=your_password
 
 > 備註：`yq` 目前維持使用 `mikefarah/yq` 官方 binary，不使用 Ubuntu apt 的 `yq`。原因是 apt 版 `yq` 屬於另一套 `jq wrapper` 實作，和本專案原本預期的工具不同；`fzf` 也維持使用 GitHub 版本，因為 apt 版曾驗證不支援目前 Bash 整合用到的 `fzf --bash`。
 
+### 額外工具（scripts/extra-tools.sh）
+- ✅ **gh** - GitHub CLI（安裝後需執行 `gh auth login`）
+- ✅ **AWS CLI v2** - 官方安裝包（安裝後需執行 `aws configure`）
+- ✅ **Google Cloud CLI（gcloud）** - 官方 apt 來源（安裝後需執行 `gcloud init`）
+- ✅ **uv** - Python 套件與專案管理工具
+- ✅ **vifm** - 終端機檔案管理器
+- ✅ **gcx** - Grafana 命令列工具（安裝後需設定 Grafana 連線）
+- ✅ **dbx-cli** - 資料庫命令列工具（npm）
+- ✅ **Scrapling** - 自適應爬蟲框架（`uv tool` 安裝，並執行 `scrapling install` 下載瀏覽器元件）
+- ✅ **crawl4ai** - RAG 語料爬蟲（`uv tool` 安裝，並執行 `crawl4ai-setup`）
+- ✅ **browser-use** - 瀏覽器自動化代理（`uv tool` 安裝，需設定 LLM API key）
+- ✅ **agent-browser**、**@googleworkspace/cli（gws）**、**notebooklm-cli（nlm-cli）**、**open-browser-use（obu）**、**chrome-devtools-mcp**、**@jackwener/opencli（opencli）**、**@hackmd/hackmd-cli（hackmd-cli）**、**uipro-cli（uipro）** - npm 全域工具
+
+> Python 工具以 `uv tool` 各自隔離安裝，不影響其他專案。需要登入、token 或 API key 的工具，安裝結束時會列出仍需手動完成的步驟。
+
 ### 使用者環境
 - ✅ ~/.profile - WINDOWS_USERNAME、JQ_COLORS、EDITOR、GPG_TTY
 - ✅ ~/.bashrc - Bash 補全設定、Starship 初始化、現代 CLI alias
