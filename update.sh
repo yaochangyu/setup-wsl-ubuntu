@@ -29,15 +29,17 @@
 
 set -uo pipefail
 
+# 實際使用者由 SUDO_USER 決定（Windows 端傳入使用者輸入的帳號，不寫死任何名稱）
+ACTUAL_USER="${SUDO_USER:-${USER}}"
+USER_HOME="$(getent passwd "${ACTUAL_USER}" | cut -d: -f6)"
+
 # 腳本可能以檔案執行（sudo ./update.sh），也可能由 stdin 傳入（Windows 端 wsl bash -s）。
-# stdin 模式沒有檔案位置，日誌改寫到使用者目錄，不依賴任何固定路徑。
+# stdin 模式沒有檔案位置，日誌改寫到實際使用者的家目錄。
 if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
     readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     readonly LOG_DIR="${SCRIPT_DIR}/logs"
 else
-    _log_user="${SUDO_USER:-${USER}}"
-    _log_home="$(getent passwd "${_log_user}" | cut -d: -f6)"
-    readonly LOG_DIR="${_log_home:-/tmp}/.local/state/setup-wsl-ubuntu/logs"
+    readonly LOG_DIR="${USER_HOME:-/tmp}/.local/state/setup-wsl-ubuntu/logs"
 fi
 readonly LOG_FILE="${LOG_DIR}/update-$(date +%Y%m%d-%H%M%S).log"
 
@@ -142,15 +144,18 @@ for arg in "$@"; do
     esac
 done
 
-mkdir -p "${LOG_DIR}"
-
-ACTUAL_USER="${SUDO_USER:-${USER}}"
-USER_HOME="$(getent passwd "${ACTUAL_USER}" | cut -d: -f6)"
 if [[ -z "${USER_HOME}" || ! -d "${USER_HOME}" ]]; then
-    error "無法取得使用者 ${ACTUAL_USER} 的家目錄"
+    echo "[ERROR] 無法取得使用者 ${ACTUAL_USER} 的家目錄" >&2
     exit 1
 fi
 readonly ACTUAL_USER USER_HOME
+
+# 日誌目錄以實際使用者身分建立，避免 root 在使用者家目錄下建立 root 擁有的目錄
+if [[ "${EUID}" -eq 0 && "${ACTUAL_USER}" != "root" ]]; then
+    sudo -u "${ACTUAL_USER}" -H mkdir -p "${LOG_DIR}" && sudo -u "${ACTUAL_USER}" -H touch "${LOG_FILE}"
+else
+    mkdir -p "${LOG_DIR}"
+fi
 
 ###############################################################################
 # 各步驟

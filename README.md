@@ -323,6 +323,7 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 ```
 參數:
   -DistroName <名稱>     目標發行版（預設依 .env UBUNTU_VERSION 推算）
+  -WslUsername <名稱>    要更新的 WSL 使用者（未指定時讀 .env WSL_USERNAME，仍無則互動輸入，無預設值）
   -SkipWslUpdate         不執行 wsl --update
   -SkipApt               傳給 update.sh，跳過 apt 更新
 ```

@@ -11,6 +11,9 @@
 .PARAMETER DistroName
     目標發行版名稱（未指定時依 .env 的 UBUNTU_VERSION 推算，預設 Ubuntu-24.04）
 
+.PARAMETER WslUsername
+    要更新工具的 WSL 使用者（優先順序：參數 > .env WSL_USERNAME > 互動輸入，無預設值）
+
 .PARAMETER SkipWslUpdate
     不執行 wsl --update
 
@@ -28,7 +31,8 @@
 
 [CmdletBinding()]
 param(
-    [string]$DistroName = "",
+    [string]$DistroName  = "",
+    [string]$WslUsername = "",   # 優先順序：參數 > .env WSL_USERNAME > 互動輸入（無預設值）
     [switch]$SkipWslUpdate,
     [switch]$SkipApt
 )
@@ -60,9 +64,18 @@ $dotenv = Read-DotEnv
 if (-not $DistroName) {
     $DistroName = if ($dotenv['UBUNTU_VERSION']) { "Ubuntu-$($dotenv['UBUNTU_VERSION'])" } else { "Ubuntu-24.04" }
 }
-$wslUser = $dotenv['WSL_USERNAME']
+# 帳號來源：參數 > .env > 互動輸入（不使用預設值，也不猜測）
+$wslUser = $WslUsername
+if (-not $wslUser) { $wslUser = $dotenv['WSL_USERNAME'] }
 if (-not $wslUser) {
-    throw "未設定 WSL 使用者。請在 .env 加入 WSL_USERNAME=<使用者名稱>（更新腳本不會猜測預設帳號）"
+    if ([Console]::IsInputRedirected) {
+        throw "未提供 WSL 使用者名稱。請使用 -WslUsername 參數，或在 .env 設定 WSL_USERNAME"
+    }
+    while ($true) {
+        $wslUser = (Read-Host "`r請輸入要更新的 WSL 使用者名稱（小寫英文字母開頭，可含數字、_、-）").Trim()
+        if ($wslUser -match '^[a-z_][a-z0-9_-]{0,31}$') { break }
+        Write-Host "`r使用者名稱格式不合法，請重新輸入" -ForegroundColor Yellow
+    }
 }
 if ($wslUser -notmatch '^[a-z_][a-z0-9_-]{0,31}$') {
     throw "WSL 使用者名稱格式不合法: $wslUser"
