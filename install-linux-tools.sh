@@ -677,6 +677,49 @@ parse_args() {
     fi
 }
 
+# 一律執行的閘門（基礎系統設定）
+always() { return 0; }
+
+# 安裝步驟表：閘門 | 閘門參數 | 進度文字 | 安裝函式
+# 閘門：always（一律執行）、want（工具或群組被選取）、group_active（群組內有被選取的工具）
+declare -a GROUP_STEPS=(
+    "always|-|設定基礎系統...|setup_base_system"
+    "want|cli-tools|安裝 CLI 工具...|install_cli_tools"
+    "want|docker|安裝 Docker...|install_docker"
+    "want|dotnet|安裝 .NET SDK...|install_dotnet"
+    "want|nodejs|安裝 Node.js...|install_nodejs"
+    "group_active|ai|安裝 AI CLI 工具...|install_ai_cli_tools"
+    "group_active|extra|安裝額外工具...|install_extra_tools"
+    "want|python|安裝 Python...|install_python"
+    "want|go|安裝 Go...|install_go"
+    "want|rust|安裝 Rust...|install_rust"
+    "want|vscode-server|設定 VS Code Server...|install_vscode_server"
+    "want|vim|安裝 Vim 插件...|install_vim_plugins"
+    "want|database|安裝資料庫工具...|install_database_tools"
+    "want|devops|安裝 DevOps 工具...|install_devops_tools"
+    "want|homebrew|安裝 Homebrew...|install_homebrew"
+)
+
+# 依步驟表執行：先算出實際要執行的步驟數（進度分母），再依序執行並只對執行中的步驟顯示進度
+run_group_steps() {
+    local entry gate arg label fn
+    local -a active=()
+    for entry in "${GROUP_STEPS[@]}"; do
+        IFS='|' read -r gate arg label fn <<< "${entry}"
+        if "${gate}" "${arg}" && declare -f "${fn}" &> /dev/null; then
+            active+=("${entry}")
+        fi
+    done
+
+    TOTAL_STEPS=${#active[@]}
+    CURRENT_STEP=0
+
+    for entry in "${active[@]}"; do
+        IFS='|' read -r gate arg label fn <<< "${entry}"
+        update_progress "${label}"
+        "${fn}"
+    done
+}
 # 主程式
 main() {
     # 初始化
@@ -712,84 +755,7 @@ main() {
     print_separator
 
     # 計算總步驟數
-    TOTAL_STEPS=13
-    CURRENT_STEP=0
-
-    # 安裝工具
-    update_progress "設定基礎系統..."
-    if declare -f setup_base_system &> /dev/null; then
-        setup_base_system
-    fi
-
-    update_progress "安裝 CLI 工具..."
-    if want cli-tools && declare -f install_cli_tools &> /dev/null; then
-        install_cli_tools
-    fi
-    
-    update_progress "安裝 Docker..."
-    if want docker && declare -f install_docker &> /dev/null; then
-        install_docker
-    fi
-
-    update_progress "安裝 .NET SDK..."
-    if want dotnet && declare -f install_dotnet &> /dev/null; then
-        install_dotnet
-    fi
-
-    update_progress "安裝 Node.js..."
-    if want nodejs && declare -f install_nodejs &> /dev/null; then
-        install_nodejs
-    fi
-
-    update_progress "安裝 AI CLI 工具..."
-    if group_active ai && declare -f install_ai_cli_tools &> /dev/null; then
-        install_ai_cli_tools
-    fi
-
-    update_progress "安裝額外工具..."
-    if group_active extra && declare -f install_extra_tools &> /dev/null; then
-        install_extra_tools
-    fi
-
-    update_progress "安裝 Python..."
-    if want python && declare -f install_python &> /dev/null; then
-        install_python
-    fi
-
-    update_progress "安裝 Go..."
-    if want go && declare -f install_go &> /dev/null; then
-        install_go
-    fi
-
-    update_progress "安裝 Rust..."
-    if want rust && declare -f install_rust &> /dev/null; then
-        install_rust
-    fi
-
-    update_progress "設定 VS Code Server..."
-    if want vscode-server && declare -f install_vscode_server &> /dev/null; then
-        install_vscode_server
-    fi
-
-    update_progress "安裝 Vim 插件..."
-    if want vim && declare -f install_vim_plugins &> /dev/null; then
-        install_vim_plugins
-    fi
-
-    update_progress "安裝資料庫工具..."
-    if want database && declare -f install_database_tools &> /dev/null; then
-        install_database_tools
-    fi
-
-    update_progress "安裝 DevOps 工具..."
-    if want devops && declare -f install_devops_tools &> /dev/null; then
-        install_devops_tools
-    fi
-
-    update_progress "安裝 Homebrew..."
-    if want homebrew && declare -f install_homebrew &> /dev/null; then
-        install_homebrew
-    fi
+    run_group_steps
 
     print_separator
 
