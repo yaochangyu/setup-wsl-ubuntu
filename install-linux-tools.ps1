@@ -142,22 +142,18 @@ function Test-DistroReady {
 function Invoke-LinuxToolsInstall {
     Write-Progress-Log -Activity "Linux 工具安裝" -Status "準備安裝腳本" -PercentComplete 10
 
-    # 將 Windows 路徑轉換為 WSL 路徑（在 PowerShell 內直接轉換，不依賴 wslpath）
-    # 例：D:\lab\setup-wsl-ubuntu\install-linux-tools.sh -> /mnt/d/lab/setup-wsl-ubuntu/install-linux-tools.sh
-    $winPath = Join-Path $PSScriptRoot "install-linux-tools.sh"
-    $driveLetter = $winPath[0].ToString().ToLower()
-    $wslScriptPath = "/mnt/$driveLetter/" + $winPath.Substring(3).Replace("\", "/")
-    Write-Log "腳本路徑 (WSL): $wslScriptPath"
+    # 不寫死任何路徑：以 wsl --cd 把工作目錄設為本腳本所在資料夾（執行期取得），再以相對路徑執行
+    $winScriptDir = $PSScriptRoot
 
-    # 確認腳本存在
+    # 確認腳本存在（相對於 --cd 的工作目錄）
     $oldEap = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    & wsl.exe -d $Script:DistroName -u root -- test -f $wslScriptPath 2>$null | Out-Null
+    & wsl.exe -d $Script:DistroName --cd $winScriptDir -u root -- test -f ./install-linux-tools.sh 2>$null | Out-Null
     $testExit = $LASTEXITCODE
     $ErrorActionPreference = $oldEap
 
     if ($testExit -ne 0) {
-        Write-Log "找不到安裝腳本: $wslScriptPath" "Error"
+        Write-Log "找不到安裝腳本: $(Join-Path $winScriptDir 'install-linux-tools.sh')" "Error"
         return $false
     }
 
@@ -177,13 +173,13 @@ function Invoke-LinuxToolsInstall {
     # （VAR=value cmd 前綴只作用於緊接的命令，不繼承至 pipe 後段）
     # 透過 sed 移除 \r 避免 Windows 換行符號造成 bash 錯誤
     # TERM=dumb 讓 bash 腳本不輸出 ANSI 色彩碼，避免 PowerShell 捕捉到亂碼
-    $wslScriptDir = $wslScriptPath.Substring(0, $wslScriptPath.LastIndexOf('/'))
-    $bashCmd = "export SUDO_USER=$WslUsername TERM=$Script:BashTerm SCRIPT_DIR='$wslScriptDir' DOCKER_TCP_PORT=$Script:DockerPort; sed 's/\r`$//' '$wslScriptPath' | bash -s --$installArgs"
+    # SCRIPT_DIR 取自 wsl --cd 設定的工作目錄（pwd），不寫入任何固定路徑
+    $bashCmd = "export SUDO_USER=$WslUsername TERM=$Script:BashTerm SCRIPT_DIR=`"`$(pwd)`" DOCKER_TCP_PORT=$Script:DockerPort; sed 's/\r`$//' ./install-linux-tools.sh | bash -s --$installArgs"
 
     # 串流輸出：邊執行邊印，避免長時間無回應看起來像卡住
     $oldEap = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    & wsl.exe -d $Script:DistroName -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
+    & wsl.exe -d $Script:DistroName --cd $winScriptDir -u root -- bash -c $bashCmd 2>&1 | ForEach-Object {
         # 過濾掉殘留的 ANSI escape code 再寫入 log
         $line = [regex]::Replace("$_", '\x1b\[[0-9;]*[mKHJ]', '')
         Write-Log $line

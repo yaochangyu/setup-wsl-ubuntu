@@ -350,14 +350,11 @@ function Update-Distro {
     $oldEap = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try {
-        $linuxDir = (& wsl.exe -d $Script:DistroName -u root -- wslpath -a "$PSScriptRoot" 2>$null | Out-String).Trim()
-        if (-not $linuxDir) {
-            Write-Log "無法將 Windows 路徑轉換為 WSL 路徑，略過 apt 更新" "Warning"
-            return
-        }
+        # 不傳遞任何路徑：把 update.sh 內容經 stdin 交給 WSL 內的 bash 執行（避免依賴 /mnt 掛載位置）
+        $updateScriptText = (Get-Content -Raw -Path (Join-Path $PSScriptRoot "update.sh")) -replace "`r", ""
 
-        # 以 root 執行 update.sh，SUDO_USER 指定 WSL 使用者
-        & wsl.exe -d $Script:DistroName -u root -- env "SUDO_USER=$WslUsername" bash "$linuxDir/update.sh" --apt-only 2>&1 | ForEach-Object { Write-Log $_ }
+        # 以 root 執行，SUDO_USER 指定 WSL 使用者
+        $updateScriptText | & wsl.exe -d $Script:DistroName -u root -- env "SUDO_USER=$WslUsername" bash -s -- --apt-only 2>&1 | ForEach-Object { Write-Log $_ }
         if ($LASTEXITCODE -ne 0) {
             Write-Log "apt 更新有失敗項目（詳見日誌），繼續安裝" "Warning"
         } else {

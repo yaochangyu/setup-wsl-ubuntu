@@ -27,8 +27,16 @@
 
 set -uo pipefail
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly LOG_DIR="${SCRIPT_DIR}/logs"
+# 腳本可能以檔案執行（sudo ./update.sh），也可能由 stdin 傳入（Windows 端 wsl bash -s）。
+# stdin 模式沒有檔案位置，日誌改寫到使用者目錄，不依賴任何固定路徑。
+if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
+    readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    readonly LOG_DIR="${SCRIPT_DIR}/logs"
+else
+    _log_user="${SUDO_USER:-${USER}}"
+    _log_home="$(getent passwd "${_log_user}" | cut -d: -f6)"
+    readonly LOG_DIR="${_log_home:-/tmp}/.local/state/setup-wsl-ubuntu/logs"
+fi
 readonly LOG_FILE="${LOG_DIR}/update-$(date +%Y%m%d-%H%M%S).log"
 
 readonly COLOR_RESET='\033[0m'

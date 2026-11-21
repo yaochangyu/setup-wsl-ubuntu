@@ -94,15 +94,13 @@ if (-not $installed) {
 
 # [3/3] 在發行版內執行 update.sh
 Write-Step "[3/3] 在 $DistroName 內執行 update.sh..." "Cyan"
-$linuxScriptDir = (& wsl.exe -d $DistroName -u root -- wslpath -a "$PSScriptRoot").Trim()
-if (-not $linuxScriptDir) {
-    throw "無法將 Windows 路徑轉換為 WSL 路徑: $PSScriptRoot"
-}
+# 不傳遞任何路徑：把 update.sh 內容經 stdin 交給 WSL 內的 bash 執行
+$updateScriptText = (Get-Content -Raw -Path (Join-Path $PSScriptRoot "update.sh")) -replace "`r", ""
 
 $updateArgs = @()
 if ($SkipApt) { $updateArgs += "--skip-apt" }
 
-& wsl.exe -d $DistroName -u root -- env "SUDO_USER=$wslUser" bash "$linuxScriptDir/update.sh" @updateArgs
+$updateScriptText | & wsl.exe -d $DistroName -u root -- env "SUDO_USER=$wslUser" bash -s -- @updateArgs
 $updateExit = $LASTEXITCODE
 
 Write-Host ""

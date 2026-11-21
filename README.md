@@ -31,10 +31,10 @@
 
 #### 方法 A：免 Git 下載（推薦，適合全新乾淨環境）
 
-以 PowerShell 執行以下命令，自動下載並解壓縮至 `D:\lab\setup-wsl-ubuntu`（若無 D 槽可改為 `C:\lab` 或其他路徑）：
+以 PowerShell 執行以下命令，自動下載並解壓縮至 `<存放位置>\setup-wsl-ubuntu`。預設為使用者資料夾下的 `lab`，可自行修改 `$targetDir`：
 
 ```powershell
-$targetDir = "D:\lab"
+$targetDir = Join-Path $HOME "lab"
 if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir -Force | Out-Null }
 $zipPath = "$targetDir\setup-wsl-ubuntu.zip"
 Invoke-WebRequest -Uri "https://github.com/yaochangyu/setup-wsl-ubuntu/archive/refs/heads/main.zip" -OutFile $zipPath
@@ -47,7 +47,7 @@ cd "$targetDir\setup-wsl-ubuntu"
 #### 方法 B：使用 Git Clone
 
 ```powershell
-cd D:\lab
+cd <存放專案的資料夾>
 git clone https://github.com/yaochangyu/setup-wsl-ubuntu.git
 cd setup-wsl-ubuntu
 ```
@@ -63,7 +63,7 @@ cd setup-wsl-ubuntu
 以**系統管理員身分**開啟 PowerShell，執行：
 
 ```powershell
-cd D:\lab\setup-wsl-ubuntu
+cd <專案資料夾>
 .\setup-wsl2.ps1
 ```
 
@@ -83,7 +83,7 @@ cd D:\lab\setup-wsl-ubuntu
 以**系統管理員身分**開啟 PowerShell，執行：
 
 ```powershell
-cd D:\lab\setup-wsl-ubuntu
+cd <專案資料夾>
 .\setup-wsl2-features.ps1
 ```
 
@@ -94,7 +94,7 @@ cd D:\lab\setup-wsl-ubuntu
 重新啟動後，開啟 PowerShell（不需要管理員），執行：
 
 ```powershell
-cd D:\lab\setup-wsl-ubuntu
+cd <專案資料夾>
 .\setup-ubuntu.ps1
 ```
 
@@ -135,7 +135,7 @@ cd D:\lab\setup-wsl-ubuntu
 開啟 Linux（從開始功能表或執行 `wsl`），然後執行：
 
 ```bash
-cd /mnt/d/lab/setup-wsl-ubuntu
+cd "$(wslpath '<專案資料夾的 Windows 路徑>')"
 sudo ./install-linux-tools.sh
 ```
 
@@ -459,7 +459,7 @@ sudo ./verify.sh --fix
 
 ### Windows 端一鍵清理 (`uninstall-wsl2.ps1`)
 
-[uninstall-wsl2.ps1](file:///F:/lab/setup-wsl-ubuntu/uninstall-wsl2.ps1) 專為 Windows 端設計，可一鍵註銷發行版、清理虛擬硬碟與 Docker Context，並支援將 WSL 徹底回復為未安裝狀態：
+[uninstall-wsl2.ps1](./uninstall-wsl2.ps1) 專為 Windows 端設計，可一鍵註銷發行版、清理虛擬硬碟與 Docker Context，並支援將 WSL 徹底回復為未安裝狀態：
 
 #### 核心功能
 * **註銷並刪除發行版**：執行 `wsl --unregister`，立即刪除對應的 `.vhdx` 虛擬磁碟並釋放硬碟空間。
