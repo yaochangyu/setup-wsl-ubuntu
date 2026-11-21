@@ -56,16 +56,16 @@ $featuresScript = Join-Path $PSScriptRoot "setup-wsl2-features.ps1"
 $linuxScript    = Join-Path $PSScriptRoot "setup-ubuntu.ps1"
 
 # 步驟 1：啟用 Windows 功能（需要管理員）
-Write-Host "[步驟 1/2] 啟用 WSL2 Windows 功能..." -ForegroundColor Cyan
+Write-Host "`r[步驟 1/2] 啟用 WSL2 Windows 功能..." -ForegroundColor Cyan
 & $featuresScript -LogPath $LogPath
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "步驟 1 失敗，請檢查日誌後重試。" -ForegroundColor Red
+    Write-Host "`r步驟 1 失敗，請檢查日誌後重試。" -ForegroundColor Red
     exit 1
 }
 
 # 步驟 2：安裝 Ubuntu（不需要管理員，但此 wrapper 已在管理員模式下執行）
-Write-Host "[步驟 2/2] 安裝 Ubuntu..." -ForegroundColor Cyan
+Write-Host "`r[步驟 2/2] 安裝 Ubuntu..." -ForegroundColor Cyan
 
 $linuxArgs = @{
     WslUsername = $WslUsername
@@ -77,10 +77,10 @@ if ($DistroName) { $linuxArgs["DistroName"] = $DistroName }
 & $linuxScript @linuxArgs
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "步驟 2 失敗，請檢查日誌後重試。" -ForegroundColor Red
+    Write-Host "`r步驟 2 失敗，請檢查日誌後重試。" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "========================================" -ForegroundColor Green
-Write-Host "全部安裝完成！" -ForegroundColor Green
-Write-Host "========================================" -ForegroundColor Green
+Write-Host "`r========================================" -ForegroundColor Green
+Write-Host "`r全部安裝完成！" -ForegroundColor Green
+Write-Host "`r========================================" -ForegroundColor Green
