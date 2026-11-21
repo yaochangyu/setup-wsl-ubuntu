@@ -7,13 +7,15 @@
 #       單一步驟失敗不會中止其餘步驟，最後會列出摘要。
 #
 # 更新範圍：
-#   - apt 系統套件（apt-get update / upgrade / autoremove）
-#   - npm 全域套件（@openai/codex、@github/copilot）
+#   - apt 系統套件（apt-get update / upgrade / autoremove；含 gh、vifm、google-cloud-cli）
+#   - npm 全域套件（@openai/codex、@github/copilot）與額外 npm 工具（已安裝者才更新）
 #   - Rust（rustup update）
 #   - pyenv（git pull --ff-only）
 #   - Claude Code（claude update）
 #   - OpenCode（opencode upgrade）
-#   - Antigravity（agy）、Hermes Agent：目前未提供已知的自動更新指令，略過
+#   - uv（uv self update）與 uv tool 安裝的工具（uv tool upgrade --all）
+#   - AWS CLI（重新執行官方安裝包，--update）
+#   - Antigravity（agy）、Hermes Agent、gcx：目前未提供已知的自動更新指令，略過
 #
 # 使用方式：
 #   sudo ./update.sh               # 更新全部
@@ -213,6 +215,38 @@ run_optional_step() {
     fi
 }
 
+update_uv_tools() {
+    local uv="${USER_HOME}/.local/bin/uv"
+    [[ -x "${uv}" ]] || return 2
+    run_as_user "export PATH=\"${USER_HOME}/.local/bin:\$PATH\"; uv self update; uv tool upgrade --all"
+}
+
+# 額外 npm 工具：只更新已安裝的套件
+EXTRA_NPM_PACKAGES=(agent-browser @googleworkspace/cli notebooklm-cli open-browser-use chrome-devtools-mcp @jackwener/opencli @hackmd/hackmd-cli uipro-cli @dbx-app/cli)
+
+update_extra_npm() {
+    [[ -s "${USER_HOME}/.nvm/nvm.sh" ]] || return 2
+    local pkgs="${EXTRA_NPM_PACKAGES[*]}"
+    run_as_user "source '${USER_HOME}/.nvm/nvm.sh'; for p in ${pkgs}; do if npm list -g --depth=0 \"\$p\" > /dev/null 2>&1; then npm update -g \"\$p\" || exit 1; fi; done"
+}
+
+update_awscli() {
+    command -v aws > /dev/null 2>&1 || return 2
+    [[ "${EUID}" -eq 0 ]] || return 1
+    local arch tmp_dir rc=0
+    arch="$(uname -m)"
+    tmp_dir="$(mktemp -d)"
+    if curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${arch}.zip" -o "${tmp_dir}/awscliv2.zip" >> "${LOG_FILE}" 2>&1 \
+        && unzip -q "${tmp_dir}/awscliv2.zip" -d "${tmp_dir}" >> "${LOG_FILE}" 2>&1 \
+        && "${tmp_dir}/aws/install" --update >> "${LOG_FILE}" 2>&1; then
+        rc=0
+    else
+        rc=1
+    fi
+    rm -rf "${tmp_dir}"
+    return ${rc}
+}
+
 ###############################################################################
 # 主流程
 ###############################################################################
@@ -230,10 +264,13 @@ if [[ "${APT_ONLY}" == true ]]; then
     skip_step "開發工具（npm、Rust、pyenv、Claude Code、OpenCode）" "--apt-only"
 else
     run_optional_step "npm 全域套件（codex、copilot）" update_npm_globals
+    run_optional_step "額外 npm 工具" update_extra_npm
     run_optional_step "Rust（rustup）" update_rust
     run_optional_step "pyenv" update_pyenv
     run_optional_step "Claude Code" update_claude_code
     run_optional_step "OpenCode" update_opencode
+    run_optional_step "uv 與 uv tool（Scrapling、crawl4ai、browser-use）" update_uv_tools
+    run_optional_step "AWS CLI" update_awscli
     skip_step "Antigravity（agy）" "目前無已知的自動更新指令"
     skip_step "Hermes Agent" "目前無已知的自動更新指令"
 fi

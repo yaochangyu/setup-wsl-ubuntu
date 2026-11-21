@@ -266,6 +266,16 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
 
 ## 命令列選項
 
+### setup-wsl2.ps1（一鍵入口，需系統管理員）
+
+```
+參數:
+  -DistroName <名稱>      發行版完整名稱（例: Ubuntu-24.04），預設 Ubuntu-24.04
+  -WslUsername <名稱>     WSL 使用者名稱（未指定時互動輸入）
+  -WslPassword <密碼>     WSL 使用者密碼（未指定時互動輸入；不會寫入日誌）
+  -LogPath <路徑>         日誌目錄，預設為專案目錄下的 logs
+```
+
 ### setup-ubuntu.ps1
 
 ```
@@ -299,6 +309,31 @@ sudo ./install-linux-tools.sh --proxy http://proxy.example.com:8080
   --help             顯示說明訊息
 ```
 
+### update.sh（WSL 內執行）
+
+```
+選項:
+  --apt-only         只更新 apt 系統套件（安裝流程使用）
+  --skip-apt         跳過 apt，只更新使用者層級工具
+  --help             顯示說明訊息
+```
+
+### update-wsl2.ps1（Windows 端執行）
+
+```
+參數:
+  -DistroName <名稱>     目標發行版（預設依 .env UBUNTU_VERSION 推算）
+  -SkipWslUpdate         不執行 wsl --update
+  -SkipApt               傳給 update.sh，跳過 apt 更新
+```
+
+### verify.sh（WSL 內執行）
+
+```
+選項:
+  --fix              檢查後自動重裝失敗項目（需 sudo）
+```
+
 ## 版本控制
 
 各工具版本可透過環境變數指定，未設定時自動取得最新版本：
@@ -324,6 +359,7 @@ sudo GO_VERSION=1.23.0 PYTHON_VERSION=3.11 ./install-linux-tools.sh
 - **Linux 工具日誌（sh）**: `logs/install-YYYYMMDD-HHMMSS.log`
 - **驗證日誌**: `logs/verify-YYYYMMDD-HHMMSS.log`
 - **卸載日誌**: `logs/uninstall-YYYYMMDD-HHMMSS.log`
+- **更新日誌**: `logs/update-YYYYMMDD-HHMMSS.log`（由 Windows 端以 stdin 執行時，寫在 WSL 使用者的 `~/.local/state/setup-wsl-ubuntu/logs/`）
 
 ### 查看日誌
 
@@ -410,6 +446,8 @@ wsl
 sudo ./uninstall.sh
 ```
 
+除了基礎開發工具與 AI CLI，也會移除額外工具：gh、AWS CLI、Google Cloud CLI、vifm、gcx、uv 與 uv tool 安裝的 Python 工具（Scrapling、crawl4ai、browser-use），以及額外 npm 工具。
+
 **警告：** 此操作會移除所有已安裝的開發工具，請謹慎使用。
 
 ## 更新開發環境
@@ -418,7 +456,7 @@ sudo ./uninstall.sh
 
 ```bash
 # 在 WSL 內執行（需要 sudo 以更新 apt）
-sudo ./update.sh               # 更新 apt + npm（codex、copilot）+ Rust + pyenv + Claude Code + OpenCode
+sudo ./update.sh               # 更新 apt、npm（codex、copilot 與已安裝的額外 npm 工具）、Rust、pyenv、Claude Code、OpenCode、uv 與 uv tool 工具、AWS CLI
 sudo ./update.sh --apt-only    # 只更新 apt 系統套件
 sudo ./update.sh --skip-apt    # 跳過 apt，只更新使用者層級工具
 ```
@@ -429,7 +467,7 @@ sudo ./update.sh --skip-apt    # 跳過 apt，只更新使用者層級工具
 .\update-wsl2.ps1 -SkipWslUpdate -SkipApt
 ```
 
-> 目前沒有已知自動更新指令的工具會被略過：Antigravity（`agy`）與 Hermes Agent。
+> 目前沒有已知自動更新指令的工具會被略過：Antigravity（`agy`）、Hermes Agent、gcx。gh、vifm、Google Cloud CLI 由 apt 更新。
 
 ## 驗證安裝
 
@@ -575,7 +613,8 @@ setup-wsl-ubuntu/
     ├── vscode-troubleshoot.sh  # VS Code Server 故障排除
     ├── vim.sh                  # Vim 配置
     ├── database.sh             # 資料庫工具（psql, sqlcmd）
-    └── devops.sh               # DevOps 工具（kubectl, helm, terraform, az）
+    ├── devops.sh               # DevOps 工具（kubectl, helm, terraform, az）
+    └── extra-tools.sh          # 額外工具（gh、awscli、gcloud、uv、Scrapling、npm AI 工具等，依選擇納入）
 ```
 
 ## 常見問題 (FAQ)

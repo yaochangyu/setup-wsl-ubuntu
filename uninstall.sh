@@ -35,6 +35,7 @@ echo "  - Go"
 echo "  - Rust"
 echo "  - DevOps 工具 (kubectl, helm, terraform, az)"
 echo "  - AI CLI 工具 (claude, codex, agy, copilot, opencode, hermes)"
+echo "  - 額外工具 (gh, AWS CLI, gcloud, vifm, gcx, uv 與 uv tool 工具, 額外 npm 工具)"
 echo "  - CLI 工具"
 echo ""
 echo -e "${COLOR_YELLOW}此操作無法復原！${COLOR_RESET}"
@@ -94,6 +95,28 @@ rm -rf "${user_home}/.opencode" 2>/dev/null || true
 if [[ "${actual_user}" != "root" ]] && [[ -s "${user_home}/.nvm/nvm.sh" ]]; then
     sudo -u "${actual_user}" bash -c "source '${user_home}/.nvm/nvm.sh' && npm uninstall -g @openai/codex @google/gemini-cli @github/copilot" >> "${LOG_FILE}" 2>&1 || true
 fi
+
+# 額外工具（scripts/extra-tools.sh 安裝的項目）
+echo "移除額外工具..."
+# npm 全域套件（額外工具）
+if [[ "${actual_user}" != "root" ]] && [[ -s "${user_home}/.nvm/nvm.sh" ]]; then
+    sudo -u "${actual_user}" bash -c "source '${user_home}/.nvm/nvm.sh' && npm uninstall -g agent-browser @googleworkspace/cli notebooklm-cli open-browser-use chrome-devtools-mcp @jackwener/opencli @hackmd/hackmd-cli uipro-cli @dbx-app/cli" >> "${LOG_FILE}" 2>&1 || true
+fi
+# uv tool 安裝的 Python 工具，再移除 uv 本體
+if [[ "${actual_user}" != "root" ]] && [[ -x "${user_home}/.local/bin/uv" ]]; then
+    for tool in scrapling crawl4ai browser-use; do
+        sudo -u "${actual_user}" -H bash -c "export PATH=\"\$HOME/.local/bin:\$PATH\"; uv tool uninstall ${tool}" >> "${LOG_FILE}" 2>&1 || true
+    done
+fi
+for name in uv uvx gcx; do
+    rm -f "${user_home}/.local/bin/${name}" 2>/dev/null || true
+done
+# apt 套件（gh、vifm、Google Cloud CLI）與 Google 套件來源
+apt-get remove -y gh vifm google-cloud-cli >> "${LOG_FILE}" 2>&1 || true
+rm -f /etc/apt/sources.list.d/google-cloud-sdk.list /usr/share/keyrings/cloud.google.gpg
+# AWS CLI（官方安裝包）
+rm -rf /usr/local/aws-cli
+rm -f /usr/local/bin/aws /usr/local/bin/aws_completer
 
 # 移除 nvm 和 Node.js
 echo "移除 Node.js 和 nvm..."
