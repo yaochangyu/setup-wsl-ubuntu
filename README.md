@@ -212,6 +212,7 @@ WSL_PASSWORD=your_password
 - ✅ **lazygit** - 終端 Git TUI 介面
 - ✅ **yazi** - 終端檔案瀏覽器
 - ✅ **chafa** - 終端圖片瀏覽
+- ✅ **pass** - Unix 標準密碼管理工具（僅安裝套件；需手動執行 `gpg --full-generate-key && pass init <GPG 金鑰 ID>` 初始化）
 
 > 備註：`yq` 目前維持使用 `mikefarah/yq` 官方 binary，不使用 Ubuntu apt 的 `yq`。原因是 apt 版 `yq` 屬於另一套 `jq wrapper` 實作，和本專案原本預期的工具不同；`fzf` 也維持使用 GitHub 版本，因為 apt 版曾驗證不支援目前 Bash 整合用到的 `fzf --bash`。
 

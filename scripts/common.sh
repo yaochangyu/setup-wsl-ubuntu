@@ -1057,6 +1057,25 @@ install_chafa() {
     fi
 }
 
+# 安裝 pass（Unix 標準密碼管理工具，透過 apt）
+# 只安裝套件，不建立 GPG 金鑰；初始化需互動輸入，請安裝後手動執行：
+#   gpg --full-generate-key && pass init <GPG 金鑰 ID>
+install_pass() {
+    if command -v pass &> /dev/null; then
+        info "pass 已安裝，跳過"
+        return 0
+    fi
+
+    info "安裝 pass..."
+    if apt_install pass; then
+        success "pass $(pass version 2>/dev/null | grep -oE 'v[0-9.]+' | head -n1) 安裝完成"
+        info "pass 尚未初始化，安裝後請手動執行: gpg --full-generate-key && pass init <GPG 金鑰 ID>"
+    else
+        warning "pass 安裝失敗"
+        return 1
+    fi
+}
+
 # 設定現代 CLI 工具替代 alias
 setup_modern_cli_aliases() {
     info "設定現代 CLI 工具 alias..."
@@ -1129,10 +1148,11 @@ install_cli_tools() {
     install_lazygit || true
     install_yazi || true
     install_chafa || true
+    install_pass || true
     setup_modern_cli_aliases || true
 
     # 驗證安裝
-    local tools=("yq" "glab" "starship" "eza" "zoxide" "tldr" "glow" "lazygit" "yazi" "chafa")
+    local tools=("yq" "glab" "starship" "eza" "zoxide" "tldr" "glow" "lazygit" "yazi" "chafa" "pass")
     info "已安裝的工具："
     for tool in "${tools[@]}"; do
         if command -v "${tool}" &> /dev/null; then
@@ -1289,6 +1309,7 @@ export -f install_glow
 export -f install_lazygit
 export -f install_yazi
 export -f install_chafa
+export -f install_pass
 export -f setup_modern_cli_aliases
 export -f install_yq
 export -f install_glab

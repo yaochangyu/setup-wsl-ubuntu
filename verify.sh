@@ -208,6 +208,13 @@ check_cli_tools() {
     else
         check_fail "chafa" "install_chafa"
     fi
+
+    # pass（只檢查安裝，不檢查是否已初始化）
+    if command -v pass &> /dev/null; then
+        check_pass "pass"
+    else
+        check_fail "pass" "install_pass"
+    fi
 }
 
 check_docker() {
