@@ -382,7 +382,7 @@ setup_bash_env() {
 
 # WSL: 取得 Windows 使用者名稱（僅在 Windows interop 啟用時）
 if [[ -e /proc/sys/fs/binfmt_misc/WSLInterop ]]; then
-    export WINDOWS_USERNAME=$(powershell.exe -NoProfile -NonInteractive -Command '$env:UserName' 2>/dev/null | tr -d '\r\n')
+    export WINDOWS_USERNAME=$(powershell.exe -NoProfile -NonInteractive -Command '$env:UserName' </dev/null 2>/dev/null | tr -d '\r\n')
 fi
 
 # jq 暗色背景終端機色彩配置
